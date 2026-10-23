@@ -1,36 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GDG Faro photo assistant
 
-## Getting Started
+Next.js, React, strict TypeScript, Tailwind CSS and OpenUI, powered by DeepSeek Flash.
 
-First, run the development server:
+Run the commands below from the application directory (the repository root after cloning, or `source/` in the original workspace).
 
-```bash
+```sh
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Anyone with the app link can use the photo assistant without an access code. The app calls the public `/api/chat` endpoint to select four random photos from the private Supabase collection and compose validated OpenUI Lang.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Configure server-only secrets using [.env.example](.env.example) and follow [setup instructions](docs/setup-agent.md). The model is `deepseek-flash`, called directly through the official DeepSeek API with native fetch. No Google Cloud configuration is required.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Only opaque photo IDs reach the model. Photo pixels, storage paths and signed URLs do not. Google Photos remains disconnected; there is no persistent index or application database table. The approved free Supabase project is `gdg-faro-photos` (`zmljzjsgxnjqlqtuoilv`), with private bucket `gdg-photos`. Paid Supabase upgrades are not authorized.
 
-## Learn More
+See [architecture](docs/agent-plan.md). Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to verify. Tests mock external requests. Live inference requires local credentials and four uploaded photos.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The full DevFest collection contains 286 compressed JPEGs in the private bucket (59.17 MB, no videos), seeded and verified on 2026-10-23. Run `npm run photos:compress` to prepare the local gallery; see setup instructions for details. The one-time seed script was removed after verification.

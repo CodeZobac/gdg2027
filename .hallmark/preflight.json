@@ -1,0 +1,7 @@
+{
+  "font": "Geist Sans + Geist Mono",
+  "framework": "Next.js 16.4.2",
+  "styling": "Tailwind CSS 4",
+  "motion": "CSS transitions only",
+  "palette": "GDG branding on white"
+}

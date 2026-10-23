@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Committed setup template contains no secrets
+!.env.example
+
+# Private photo originals, selections, compressed images and their manifests
+# These currently live outside this app checkout; also ignore future local copies.
+gdgfarodevfest25/
+gdg-fotos-selection/
+gdg-fotos-compressed/
+
+# Local credentials and agent caches
+.aws/
+.codex/
+.agents/
+.serena/cache/

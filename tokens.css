@@ -1,0 +1,36 @@
+/* Hallmark · pre-emit critique: P4 H5 E4 S5 R5 V4
+ * genre: modern-minimal · theme: custom GDG · macrostructure: conversational workspace
+ * tone: technical community demo · anchor: Google blue */
+:root {
+  --background: #fff;
+  --foreground: #28303c;
+  --color-paper: #ffffff;
+  --color-sidebar: #f7f8fa;
+  --color-muted: #777f8d;
+  --color-soft: #a0a6b0;
+  --color-line: #e9ecf0;
+  --color-accent: #3978e8;
+  --color-accent-deep: #245dbf;
+  --color-accent-soft: #edf3ff;
+  --color-green: #219565;
+  --color-green-soft: #eaf5ef;
+  --color-yellow: #b78216;
+  --color-yellow-soft: #fdf5df;
+  --color-red: #ea5347;
+  --color-brand-yellow: #f9bc42;
+  --color-overlay: #182a4259;
+  --color-shadow: #192f4b0a;
+  --color-ink: #28303c;
+  --color-sand: #e9d5ad;
+  --color-sea: #7cbbcc;
+  --color-sea-deep: #5595ad;
+  --color-terracotta: #b9775e;
+  --color-sunset: #edba8c;
+  --color-olive: #7e926b;
+  --color-night: #667e97;
+  --font-body: var(--font-geist-sans), Arial, sans-serif;
+  --font-code: var(--font-geist-mono), monospace;
+  --ease-ui: cubic-bezier(.2,.7,.2,1);
+  --dur-ui: 180ms;
+  --radius-card: 12px;
+}
