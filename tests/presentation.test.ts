@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps, operationKeyTerms, operationSteps, operationsLayerProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -227,4 +227,38 @@ test("orchestration agent enforces layer 2 key terms and the Layer 4 boundary", 
   }, async () => { throw new Error("no storage"); }, undefined, "layer-orchestration");
   assert.equal(reply.step, "layer-orchestration");
   assert.ok(presentationReplySchema.safeParse(reply).success);
+});
+
+const opsCopy = [
+  "Deterministic operations are the hands of the system: queries, calculations, transformations, integrations and retrieval.",
+  "Layer 2 decides what to do; Layer 3 only executes it.",
+  "Tool or retriever tells you what kind of work happened.",
+  "Summarize inputs and outputs when data is heavy or sensitive.",
+  "Data quality signals flag missing data, suspicious formats and inconsistent ranges.",
+];
+const opsUi = (copy = opsCopy) => `root = Response([ops])\nops = OperationsLayer(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("operations layer accepts plain-text captions only and canonicalizes literals", () => {
+  assert.equal(validatePresentationUi(opsUi(), "layer-operations"), opsUi());
+  const props = { summary: opsCopy[0], separation: opsCopy[1], type: opsCopy[2], io: opsCopy[3], quality: opsCopy[4] };
+  assert.ok(operationsLayerProps.safeParse(props).success);
+  assert.ok(!operationsLayerProps.safeParse({ ...props, extra: "x" }).success);
+  for (const invalid of ["", "word ".repeat(17).trim(), "Set capture_input to false", "Runs operation.unit spans", "<code>tool</code>"]) {
+    assert.throws(() => validatePresentationUi(opsUi([opsCopy[0], invalid, ...opsCopy.slice(2)]), "layer-operations"), /invalid presentation/);
+  }
+  assert.throws(() => validatePresentationUi(opsUi(), "layer-orchestration"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(flowUi(), "layer-operations"), /invalid presentation/);
+});
+test("operations agent enforces layer 3 key terms and facts", async () => {
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.equal(request.messages[1].content, "Layer 3: what do deterministic operations record?");
+    for (const term of operationKeyTerms) assert.ok(system.includes(term), term);
+    for (const item of operationSteps) assert.ok(system.includes(item.title), item.title);
+    for (const fact of ["as a tool", "as a retriever", "heavy or sensitive", "separate deciding (Layer 2) from executing (Layer 3)"]) assert.ok(system.includes(fact), fact);
+    assert.ok(system.includes("OperationsLayer(summary, separation, type, io, quality)"));
+    return { role: "assistant", content: opsUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "layer-operations");
+  assert.equal(reply.step, "layer-operations");
+  assert.ok(presentationReplySchema.safeParse(reply).success);
+  assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-operations" }).success);
 });

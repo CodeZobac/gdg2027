@@ -37,6 +37,14 @@ export const orchestrationSteps = [
   { key: "boundary", title: "Boundary", hint: "Business here, technical in Layer 4" },
 ] as const;
 export const orchestrationKeyTerms = ["orchestrator", "business decisions", "strategy", "agent", "chain", "decisions", "final path", "business fallback", "abort", "circuit breaker", "manual interruption", "LiteLLM Router", "Layer 4"] as const;
+/** Layer 3 deep-dive: deterministic operations, the hands of the system. */
+export const operationSteps = [
+  { key: "separation", title: "Decide → execute", hint: "Layer 2 decides, Layer 3 acts" },
+  { key: "type", title: "Operation type", hint: "tool or retriever" },
+  { key: "io", title: "Summarized I/O", hint: "For heavy or sensitive data" },
+  { key: "quality", title: "Data quality", hint: "Signals worth alerting on" },
+] as const;
+export const operationKeyTerms = ["hands of the system", "decide", "execute", "Layer 2", "tool", "retriever", "calculations", "queries", "transformations", "external integrations", "retrieval", "summarized inputs and outputs", "sensitive data", "data quality signals", "missing data", "suspicious formats", "ambiguous units", "inconsistent ranges"] as const;
 export const presentationSteps = [{
   id: "opening",
   prompt: "Start the presentation",
@@ -63,6 +71,11 @@ export const presentationSteps = [{
   prompt: "Layer 2: how does the orchestrator decide?",
   components: ["OrchestrationLayer"],
   guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 2, orchestration and reasoning, recorded as a Span under the root Trace. Facts: the orchestrator is decorated with @observe as an agent or as a chain; it decides which steps to run, in which order and with which tools. It keeps only business decisions: technical retries, fallbacks between models, timeouts and rate limits move to the LiteLLM Router or Proxy in Layer 4. Typical metadata: the strategy type (policy based, tool-using agent, workflow graph); steps and decisions, meaning the condition that led to each operation and the final path (success, business fallback or abort); and business control signals such as manual interruptions and flow circuit breakers. Use these key terms naturally where relevant: ${orchestrationKeyTerms.join(", ")}. Trusted React already renders the code, field names, the decision flow and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, metrics, URLs or markup.`,
+}, {
+  id: "layer-operations",
+  prompt: "Layer 3: what do deterministic operations record?",
+  components: ["OperationsLayer"],
+  guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 3, deterministic operations, recorded as Spans under the orchestrator. Facts: these operations are the hands of the system: calculations, queries, transformations, external integrations and retrieval. They separate deciding (Layer 2) from executing (Layer 3). Tools and integrations use @observe as a tool; document retrieval uses @observe as a retriever. Typical metadata: the operation type; summarized inputs and outputs, turning automatic input and output capture off and updating the span manually when data is heavy or sensitive; and data quality signals: missing data, suspicious formats, ambiguous units and inconsistent ranges. Use these key terms naturally where relevant: ${operationKeyTerms.join(", ")}. Trusted React already renders the code, field names, the span tree and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, metrics, URLs or markup.`,
 }] as const;
 export type PresentationStepId = typeof presentationSteps[number]["id"];
 export const openingStep = presentationSteps[0];
@@ -70,7 +83,8 @@ export const overviewStep = presentationSteps[1];
 export const architectureStep = presentationSteps[2];
 export const sessionStep = presentationSteps[3];
 export const orchestrationStep = presentationSteps[4];
-export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration"]) }).strict();
+export const operationsStep = presentationSteps[5];
+export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration", "layer-operations"]) }).strict();
 export const presentationTitleProps = z.object({ title: z.literal(openingStep.title) }).strict();
 export const presentationPhotoProps = z.object({ photoId: z.literal("presentation-opening") }).strict();
 /** Model-written copy: short plain text only, no markup, code, URLs or domain-like tokens. */
@@ -108,6 +122,13 @@ export const orchestrationLayerProps = z.object({
   outcome: sessionCaption,
   boundary: sessionCaption,
 }).strict();
+export const operationsLayerProps = z.object({
+  summary: plainText(28, 200),
+  separation: sessionCaption,
+  type: sessionCaption,
+  io: sessionCaption,
+  quality: sessionCaption,
+}).strict();
 export const presentationPhotoSchema = z.object({ id: z.literal("presentation-opening"), url: z.string().url(), expiresAt: z.string().datetime() }).strict();
 export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("opening"), source: z.string().max(16000), photo: presentationPhotoSchema }).strict(),
@@ -115,5 +136,6 @@ export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("architecture-layers"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-session"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-orchestration"), source: z.string().max(16000) }).strict(),
+  z.object({ mode: z.literal("presentation"), step: z.literal("layer-operations"), source: z.string().max(16000) }).strict(),
 ]);
 export type PresentationReply = z.infer<typeof presentationReplySchema>;
