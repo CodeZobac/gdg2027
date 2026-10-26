@@ -1,8 +1,8 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { AgentError } from "./errors";
-import { selectFourPhotos } from "./storage-selection";
-import type { GalleryPhoto } from "../shared/gallery-contract";
+import { selectPhotos } from "./storage-selection";
+import { GALLERY_SIZE, type GalleryPhoto } from "../shared/gallery-contract";
 
 function configuredStorage(signal?: AbortSignal) {
   const { SUPABASE_URL: url, SUPABASE_SECRET_KEY: key, SUPABASE_PHOTO_BUCKET: bucket, SUPABASE_PHOTO_PREFIX: prefix = "" } = process.env;
@@ -17,16 +17,17 @@ function configuredStorage(signal?: AbortSignal) {
   return { storage, url, bucket, prefix };
 }
 
-export async function getRandomPhotos(signal?: AbortSignal): Promise<GalleryPhoto[]> {
+/** Signs `count` randomly sampled photos for 5 minutes. IDs are opaque and positional. */
+export async function getRandomPhotos(signal?: AbortSignal, count = GALLERY_SIZE): Promise<GalleryPhoto[]> {
   const { storage, url, bucket, prefix } = configuredStorage(signal);
-  const paths = await selectFourPhotos(async (folder, offset, limit) => {
+  const paths = await selectPhotos(async (folder, offset, limit) => {
     const { data, error } = await storage.list(folder, { offset, limit, sortBy: { column: "name", order: "asc" } });
     if (error || !data) throw new AgentError("STORAGE_UNAVAILABLE", "The photo collection could not be listed. Check server storage permissions.");
     return data;
-  }, prefix);
+  }, prefix, undefined, count);
   const expiresAt = new Date(Date.now() + 300000).toISOString();
   const { data, error } = await storage.createSignedUrls(paths, 300);
-  if (error || !data || data.length !== 4 || data.some(item => item.error || !item.signedUrl)) throw new AgentError("STORAGE_UNAVAILABLE", "Temporary photo access could not be created.");
+  if (error || !data || data.length !== count || data.some(item => item.error || !item.signedUrl)) throw new AgentError("STORAGE_UNAVAILABLE", "Temporary photo access could not be created.");
   return paths.map((path, index) => {
     const match = data.find(item => item.path === path);
     if (!match?.signedUrl) throw new AgentError("STORAGE_UNAVAILABLE", "A selected photo is unavailable.");

@@ -3,17 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ArrowUp, Check, ChevronDown, Code2, ImagePlus, Images, Info, Menu, MessageSquare, Plus, Search, ShieldCheck, Sparkles, Terminal, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, ChevronDown, Code2, Images, Info, Menu, MessageSquare, Plus, ShieldCheck, Sparkles, Terminal, X } from "lucide-react";
+import "@/components/presentation.css";
 import { PresentationChat } from "@/components/presentation-chat";
-import { AgentResponse } from "@/components/agent-response";
-import { agentReplySchema, type AgentReply } from "@/lib/shared/gallery-contract";
+import { ChatResponse } from "@/components/chat-response";
+import { PhotoGallery } from "@/components/photo-gallery";
+import { chatReplySchema, type ChatReply, type ChatTurn } from "@/lib/shared/chat-contract";
 
-type Message = { id: number; role: "user" | "assistant"; text: string; reply?: AgentReply };
-const suggestions = [
-  { icon: Search, color: "blue", title: "Discover four photos", text: "Pick four photos at random", prompt: "Show me four random photos" },
-  { icon: Images, color: "green", title: "Explore a collection", text: "Show me a photo collection", prompt: "Show me a photo collection" },
-  { icon: Sparkles, color: "yellow", title: "Try another selection", text: "Let chance choose a collection", prompt: "Select four more random photos" },
-];
+type Message = { id: number; role: "user" | "assistant"; text: string; reply?: ChatReply };
 
 export default function Home() {
   const [tab, setTab] = useState<"chat" | "presentation">("chat");
@@ -49,7 +46,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!panel) return;
+    if (panel !== "about") return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPanel(null);
@@ -69,20 +66,22 @@ export default function Home() {
     const value = text.trim();
     if (!value || busy) return;
     setDraft("");
+    // Short, text-only context so follow-ups work; the server treats it as untrusted.
+    const history: ChatTurn[] = messages.slice(-6).map(message => ({ role: message.role, text: (message.role === "user" ? message.text : message.reply?.text ?? "").slice(0, 800) })).filter(turn => turn.text.trim());
     setMessages(previous => [...previous, { id: Date.now(), role: "user", text: value }]);
     setBusy(true);
     setError("");
     const controller = new AbortController();
     requestController.current = controller;
     try {
-      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: value }), signal: controller.signal });
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: value, history }), signal: controller.signal });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "The photo agent is unavailable.");
-      const reply = agentReplySchema.parse(body);
+      if (!response.ok) throw new Error(body.error ?? "The assistant is unavailable.");
+      const reply = chatReplySchema.parse(body);
       if (!controller.signal.aborted) { setConnection({ connected: true, reason: "" }); setMessages(previous => [...previous, { id: Date.now(), role: "assistant", text: "", reply }]); }
     } catch (error) {
       if (!controller.signal.aborted) {
-        const reason = error instanceof Error ? error.message : "The photo agent is unavailable.";
+        const reason = error instanceof Error ? error.message : "The assistant is unavailable.";
         setError(reason);
         setConnection({ connected: false, reason });
       }
@@ -107,7 +106,7 @@ export default function Home() {
         <nav aria-label="Main navigation">
           <button className={`nav-item ${tab === "chat" ? "active" : ""}`} onClick={() => { setTab("chat"); setPanel(null); setSidebar(false); }}><MessageSquare size={18} /> Chat {tab === "chat" && <span className="nav-dot" />}</button>
           <button className={`nav-item ${tab === "presentation" ? "active" : ""}`} onClick={() => { setTab("presentation"); setPanel(null); setSidebar(false); }}><Sparkles size={18} /> Presentation {tab === "presentation" && <span className="nav-dot" />}</button>
-          <button className="nav-item" onClick={() => setPanel("photos")}><Images size={18} /> Photo playground </button>
+          <button className={`nav-item ${panel === "photos" ? "active" : ""}`} onClick={() => { setPanel("photos"); setSidebar(false); }}><Images size={18} /> Last year&apos;s gallery </button>
         </nav>
         <div className="history-heading">YOUR CONVERSATIONS <span>{history.length.toString().padStart(2, "0")}</span></div>
         <div className="history-list">
@@ -121,32 +120,32 @@ export default function Home() {
       </aside>
 
       <div className="main-shell">
-        <header className="topbar"><div className="topbar-title"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setSidebar(true)}><Menu size={21} /></button><span>{tab === "presentation" ? "Presentation" : "Photo assistant"}</span><span className="version-tag">EXPERIMENT 01</span></div><div className="topbar-right"><div className="connection-status" role="status"><span className={`agent-status ${connection.connected ? "is-connected" : "is-disconnected"}`}>{connection.connected ? "Connected" : "Disconnected"}</span>{!connection.connected && <span className="connection-reason">{connection.reason}</span>}</div><button className="icon-button" aria-label="About this app" onClick={() => setPanel("about")}><Info size={18} /></button></div></header>
+        <header className="topbar"><div className="topbar-title"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setSidebar(true)}><Menu size={21} /></button><span>{tab === "presentation" ? "Presentation" : "Langfuse assistant"}</span><span className="version-tag">EXPERIMENT 01</span></div><div className="topbar-right"><div className="connection-status" role="status"><span className={`agent-status ${connection.connected ? "is-connected" : "is-disconnected"}`}>{connection.connected ? "Connected" : "Disconnected"}</span>{!connection.connected && <span className="connection-reason">{connection.reason}</span>}</div><button className="icon-button" aria-label="About this app" onClick={() => setPanel("about")}><Info size={18} /></button></div></header>
         <PresentationChat active={tab === "presentation"} showSource={showSource} />
         <div className="chat-view" hidden={tab !== "chat"}>
         <main className={`chat-main ${messages.length ? "has-messages" : ""}`}>
           {!messages.length ? <div className="welcome">
-            <div className="welcome-eyebrow"><span /> MADE FOR CURIOUS MINDS</div>
+            <div className="welcome-eyebrow"><span /> GDG FARO · LANGFUSE TALK</div>
             <div className="assistant-symbol" aria-hidden="true"><Sparkles size={35} strokeWidth={1.5} /><span className="symbol-dot dot-red" /><span className="symbol-dot dot-green" /><span className="symbol-dot dot-yellow" /></div>
-            <h1>Your photos.<br /><span>A new conversation.</span></h1>
-            <p className="welcome-description">Find a moment. Explore a memory. See what happens<br className="desktop-break" /> when your photos meet a little curiosity.</p>
-            <div className="suggestions">{suggestions.map(({ icon: Icon, color, title, text, prompt }) => <button key={title} className="suggestion" onClick={() => send(prompt)}><span className={`suggestion-icon ${color}`}><Icon size={21} strokeWidth={1.6} /></span><strong>{title}</strong><span className="suggestion-description">{text}</span><ArrowRight className="suggestion-arrow" size={17} /></button>)}</div>
-            <div className="welcome-note"><ShieldCheck size={14} /> Explore photos shared with the GDG Faro community.</div>
-          </div> : <div className="messages" aria-live="polite" aria-relevant="additions">{messages.map(message => <article className={`message ${message.role}`} key={message.id}>{message.role === "assistant" && <div className="message-avatar"><Sparkles size={18} /></div>}<div className="message-content">{message.role === "assistant" && <div className="message-name">Faro assistant <span>AGENT</span></div>}{message.role === "user" ? <p>{message.text}</p> : message.reply ? <AgentResponse reply={message.reply} showSource={showSource} /> : null}</div></article>)}{busy && <div className="thinking" role="status"><Sparkles size={17} /><span>Selecting your photo collection</span><span className="thinking-dots">···</span></div>}<div ref={end} /></div>}
+            <h1>Your AI, observable.<br /><span>Ask about Langfuse.</span></h1>
+            <p className="welcome-description">Traces, spans, generations and the four layers from today&apos;s talk.<br className="desktop-break" /> Ask anything: answers come from the presentation, with a slide when it helps.</p>
+            <div className="welcome-note"><ShieldCheck size={14} /> Grounded in the GDG Faro Langfuse presentation.</div>
+          </div> : <div className="messages" aria-live="polite" aria-relevant="additions">{messages.map(message => <article className={`message ${message.role}`} key={message.id}>{message.role === "assistant" && <div className="message-avatar"><Sparkles size={18} /></div>}<div className="message-content">{message.role === "assistant" && <div className="message-name">Faro assistant <span>AGENT</span></div>}{message.role === "user" ? <p>{message.text}</p> : message.reply ? <ChatResponse reply={message.reply} showSource={showSource} /> : null}</div></article>)}{busy && <div className="thinking" role="status"><Sparkles size={17} /><span>Thinking it through</span><span className="thinking-dots">···</span></div>}<div ref={end} /></div>}
         </main>
         <div className="composer-area"><div className="composer-inner">{error && <p className="agent-error" role="alert">{error}</p>}
           {messages.length > 0 && <button className="start-over" onClick={newChat}><Plus size={14} /> New conversation</button>}
           <form className="composer" onSubmit={event => { event.preventDefault(); send(); }}>
-            <label className="sr-only" htmlFor="message">Message the photo assistant</label>
-            <textarea id="message" ref={input} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} placeholder="What would you like to explore?" />
-            <div className="composer-tools"><button type="button" className="photo-button" onClick={() => setPanel("photos")}><ImagePlus size={18} /><span>Add photos</span><span className="soon-label">SOON</span></button><div className="composer-actions"><span className="enter-hint">Enter to send</span><button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || busy}><ArrowUp size={20} /></button></div></div>
+            <label className="sr-only" htmlFor="message">Ask the Langfuse assistant</label>
+            <textarea id="message" ref={input} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} placeholder="Ask about traces, LiteLLM or the four layers…" />
+            <div className="composer-tools"><span className="composer-hint"><Sparkles size={15} /> Try “Show me layer 2” or “What should I not trace?”</span><div className="composer-actions"><span className="enter-hint">Enter to send</span><button type="submit" className="send-button" aria-label="Send message" disabled={!draft.trim() || busy}><ArrowUp size={20} /></button></div></div>
           </form>
           <div className="composer-footer"><span><span className="four-dots"><i /><i /><i /><i /></span> A GDG Faro experiment</span><button className={`source-toggle ${showSource ? "selected" : ""}`} onClick={() => setShowSource(!showSource)} aria-pressed={showSource}><Terminal size={13} /> OpenUI <ChevronDown size={12} /></button></div>
-          <p className="demo-disclaimer">Four random collection photos · Google Photos is not connected.</p>
+          <p className="demo-disclaimer">Answers grounded in the presentation · DeepSeek Flash via OpenUI · may contain mistakes.</p>
         </div></div>
         </div>
       </div>
-      {panel && <div className="modal-backdrop" onClick={() => setPanel(null)}><section ref={dialog} className="info-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === "Escape") setPanel(null); }}><button autoFocus className="modal-close icon-button" aria-label="Close dialog" onClick={() => setPanel(null)}><X size={21} /></button><span className="modal-icon">{panel === "photos" ? <Images size={28} /> : <Code2 size={28} />}</span><div className="welcome-eyebrow">GDG FARO · PHOTO ASSISTANT</div><h2 id="modal-title">{panel === "photos" ? "A playground for your photos." : "Small experiment. Big curiosity."}</h2><p>{panel === "photos" ? "Ask for four random photos from the shared GDG Faro collection. Anyone with the app link can explore these photos. Google Photos is not connected." : "A community app exploring photo conversations and generative interfaces. Built with Next.js, React, Tailwind CSS, and the local OpenUI renderer."}</p><ul><li><Check size={16} /> Photo assistant available to anyone with the link</li><li><Check size={16} /> Approved components rendered with OpenUI Lang</li><li><ShieldCheck size={16} /> No account connection or photo upload</li></ul><button className="modal-primary" onClick={() => { setPanel(null); send("Show me a photo collection"); }}>Explore the collection <ArrowRight size={17} /></button></section></div>}
+      {panel === "photos" && <PhotoGallery onClose={() => setPanel(null)} />}
+      {panel === "about" && <div className="modal-backdrop" onClick={() => setPanel(null)}><section ref={dialog} className="info-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === "Escape") setPanel(null); }}><button autoFocus className="modal-close icon-button" aria-label="Close dialog" onClick={() => setPanel(null)}><X size={21} /></button><span className="modal-icon"><Code2 size={28} /></span><div className="welcome-eyebrow">GDG FARO · LANGFUSE ASSISTANT</div><h2 id="modal-title">Illuminating the black box.</h2><p>A companion to the talk &ldquo;Langfuse: Illuminating the black box in the AI era&rdquo;. The assistant answers from the presentation and can embed any of its interactive slides. Built with Next.js, React, OpenUI and DeepSeek Flash.</p><ul><li><Check size={16} /> Answers grounded in the presentation content</li><li><Check size={16} /> Slides rendered as validated OpenUI components</li><li><ShieldCheck size={16} /> Demo data only · no telemetry is sent to Langfuse</li></ul><button className="modal-primary" onClick={() => { setPanel(null); setTab("chat"); send("Walk me through the four layers"); }}>Ask about the four layers <ArrowRight size={17} /></button></section></div>}
     </div>
   );
 }

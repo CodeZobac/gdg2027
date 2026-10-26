@@ -2,11 +2,14 @@ import { presentationAgent } from "@/lib/server/presentation-agent";
 import { presentationSteps, presentationRequestSchema } from "@/lib/shared/presentation-contract";
 import { checkSpam } from "@/lib/server/spam-prevention";
 import { z } from "zod/v4";
-import { photoAgent } from "@/lib/server/photo-agent";
+import { chatAgent } from "@/lib/server/chat-agent";
+import { getRandomPhotos } from "@/lib/server/supabase-photos";
+import { chatRequestSchema } from "@/lib/shared/chat-contract";
+import { galleryRequestSchema } from "@/lib/shared/gallery-contract";
 import { AgentError } from "@/lib/server/errors";
 
 // Node.js is the default runtime; explicit segment runtime conflicts with Cache Components.
-const bodySchema = z.union([z.object({ message: z.string().trim().min(1) }).strict(), presentationRequestSchema]);
+const bodySchema = z.union([chatRequestSchema, presentationRequestSchema, galleryRequestSchema]);
 const noStore = { "Cache-Control": "no-store, private" };
 export async function POST(request: Request) {
   if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return Response.json({ error: "Cross-origin agent requests are not allowed." }, { status: 403, headers: noStore });
@@ -29,16 +32,18 @@ export async function POST(request: Request) {
     const parsed = bodySchema.safeParse(JSON.parse(raw));
     if (!parsed.success) return Response.json({ error: "Send a non-empty message." }, { status: 400, headers });
     const payload = parsed.data;
-    const spam = checkSpam(request, "mode" in payload ? presentationSteps.find(step => step.id === payload.step)?.prompt ?? payload.step : payload.message);
+    const spam = checkSpam(request, !("mode" in payload) ? payload.message : payload.mode === "gallery" ? "gallery: shuffle" : presentationSteps.find(step => step.id === payload.step)?.prompt ?? payload.step);
     headers["Set-Cookie"] = spam.cookie;
     if (spam.blocked) return Response.json({ error: "Repeated or rapid submissions detected. Please wait a moment.", code: "SPAM_DETECTED" }, { status: 429, headers: { ...headers, "Retry-After": String(spam.retryAfter) } });
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60000)]);
-    return Response.json("mode" in parsed.data ? await presentationAgent(signal, parsed.data.step) : await photoAgent(parsed.data.message, signal), { headers });
+    if (!("mode" in payload)) return Response.json(await chatAgent(payload.message, payload.history ?? [], signal), { headers });
+    if (payload.mode === "gallery") return Response.json({ mode: "gallery", photos: await getRandomPhotos(signal) }, { headers });
+    return Response.json(await presentationAgent(signal, payload.step), { headers });
   } catch (error) {
     if (error instanceof SyntaxError) return Response.json({ error: "Invalid JSON request." }, { status: 400, headers });
     if (error instanceof AgentError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers });
     // Do not leak SDK errors, credentials, paths, prompts or signed URLs into responses/logs.
-    return Response.json({ error: "The photo agent is unavailable. Please try again.", code: "AGENT_UNAVAILABLE" }, { status: 503, headers });
+    return Response.json({ error: "The assistant is unavailable. Please try again.", code: "AGENT_UNAVAILABLE" }, { status: 503, headers });
   }
 }
 

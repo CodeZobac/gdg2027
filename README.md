@@ -1,4 +1,4 @@
-# GDG Faro photo assistant
+# GDG Faro Langfuse assistant
 
 Next.js, React, strict TypeScript, Tailwind CSS and OpenUI, powered by DeepSeek Flash.
 
@@ -9,11 +9,15 @@ npm ci
 npm run dev
 ```
 
-Anyone with the app link can use the photo assistant without an access code. The app calls the public `/api/chat` endpoint to select four random photos from the private Supabase collection and compose validated OpenUI Lang.
+Anyone with the app link can use the app without an access code. Three surfaces share the public `/api/chat` endpoint:
+
+- **Chat**: a Langfuse assistant grounded in the presentation (`lib/server/presentation-knowledge.ts`, built from the same trusted contract as the slides). It answers in plain text and embeds at most one interactive slide component when a visual helps.
+- **Presentation**: nine OpenUI-driven slides (Langfuse overview, the four instrumentation layers, the tracing principle and closing QR codes).
+- **Last year's gallery**: twelve random photos from the private Supabase collection, signed for five minutes.
 
 Configure server-only secrets using [.env.example](.env.example) and follow [setup instructions](docs/setup-agent.md). The model is `deepseek-flash`, called directly through the official DeepSeek API with native fetch. No Google Cloud configuration is required.
 
-Only opaque photo IDs reach the model. Photo pixels, storage paths and signed URLs do not. Google Photos remains disconnected; there is no persistent index or application database table. The approved free Supabase project is `gdg-faro-photos` (`zmljzjsgxnjqlqtuoilv`), with private bucket `gdg-photos`. Paid Supabase upgrades are not authorized.
+Photos never reach the model: the gallery is served directly, and the only model-facing image reference is the opaque presentation photo ID. Google Photos remains disconnected; there is no persistent index or application database table. The approved free Supabase project is `gdg-faro-photos` (`zmljzjsgxnjqlqtuoilv`), with private bucket `gdg-photos`. Paid Supabase upgrades are not authorized.
 
 See [architecture](docs/agent-plan.md). Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` to verify. Tests mock external requests. Live inference requires local credentials and four uploaded photos.
 

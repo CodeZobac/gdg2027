@@ -6,7 +6,7 @@ export type ListPage = (prefix: string, offset: number, limit: number) => Promis
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"]);
 
 /** Reservoir sampling across every page and folder: never bias toward the first page. */
-export async function selectFourPhotos(list: ListPage, root = "", draw = randomInt): Promise<string[]> {
+export async function selectPhotos(list: ListPage, root = "", draw = randomInt, count = 4): Promise<string[]> {
   const selected: string[] = [];
   const pending = [root];
   const encountered = new Set<string>();
@@ -26,12 +26,13 @@ export async function selectFourPhotos(list: ListPage, root = "", draw = randomI
         if (!/\.(jpe?g|png|webp|avif|gif)$/i.test(entry.name)) continue;
         if (entry.metadata?.mimetype && !imageTypes.has(entry.metadata.mimetype)) continue;
         seen++;
-        if (selected.length < 4) selected.push(path);
-        else { const index = draw(seen); if (index < 4) selected[index] = path; }
+        if (selected.length < count) selected.push(path);
+        else { const index = draw(seen); if (index < count) selected[index] = path; }
       }
       if (entries.length < 100) break;
     }
   }
-  if (selected.length < 4) throw new AgentError("NOT_ENOUGH_PHOTOS", "Upload at least four supported images to the configured photo bucket.", 422);
+  if (selected.length < count) throw new AgentError("NOT_ENOUGH_PHOTOS", `Upload at least ${count} supported images to the configured photo bucket.`, 422);
   return selected;
 }
+export const selectFourPhotos = (list: ListPage, root = "", draw = randomInt) => selectPhotos(list, root, draw, 4);
