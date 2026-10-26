@@ -79,9 +79,9 @@ export const architectureLayersProps = z.object({
   operation: architectureDescription,
   inference: architectureDescription,
 }).strict();
-export const sessionCaption = plainText(14, 110);
+export const sessionCaption = plainText(16, 130);
 export const sessionLayerProps = z.object({
-  summary: plainText(24, 180),
+  summary: plainText(28, 200),
   entrypoint: sessionCaption,
   identity: sessionCaption,
   context: sessionCaption,

@@ -148,10 +148,10 @@ test("session layer accepts plain-text captions only and canonicalizes literals"
   const props = { summary: sessionCopy[0], entrypoint: sessionCopy[1], identity: sessionCopy[2], context: sessionCopy[3], cost: sessionCopy[4] };
   assert.ok(sessionLayerProps.safeParse(props).success);
   assert.ok(!sessionLayerProps.safeParse({ ...props, extra: "untrusted" }).success);
-  for (const invalid of ["", "word ".repeat(15).trim(), "a".repeat(111), "Set user_id and session_id", "Root is interaction.session", "<i>cost</i>", "Read www.langfuse.com"]) {
+  for (const invalid of ["", "word ".repeat(17).trim(), "a".repeat(131), "Set user_id and session_id", "Root is interaction.session", "<i>cost</i>", "Read www.langfuse.com"]) {
     assert.throws(() => validatePresentationUi(sessionUi([sessionCopy[0], invalid, ...sessionCopy.slice(2)]), "layer-session"), /invalid presentation/);
   }
-  assert.throws(() => validatePresentationUi(sessionUi(["word ".repeat(25).trim(), ...sessionCopy.slice(1)]), "layer-session"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(sessionUi(["word ".repeat(29).trim(), ...sessionCopy.slice(1)]), "layer-session"), /invalid presentation/);
   for (const source of [sessionUi().replace("SessionLayer", "ArchitectureLayers"), sessionUi().replace("[session]", "[session, session]"), sessionUi() + '\nextra = Query("secret", {})', sessionUi().replace(/, "Cost rollup[^\n]+$/, ")")]) assert.throws(() => validatePresentationUi(source, "layer-session"), /invalid presentation/);
   assert.throws(() => validatePresentationUi(sessionUi(), "architecture-layers"), /invalid presentation/);
   assert.throws(() => validatePresentationUi(architectureUi(), "layer-session"), /invalid presentation/);
@@ -169,4 +169,29 @@ test("session agent enforces layer 1 key terms and facts, skips storage", async 
   assert.equal(reply.step, "layer-session");
   assert.ok(presentationReplySchema.safeParse(reply).success);
   assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-session" }).success);
+});
+
+test("presentation repairs rejected output once, feeding back field-level reasons", async t => {
+  const warn = t.mock.method(console, "warn", () => {});
+  const tooLong = [sessionCopy[0], "word ".repeat(20).trim(), ...sessionCopy.slice(2)];
+  const seen: string[] = [];
+  const reply = await runPresentationAgent(async request => {
+    seen.push(String(request.messages.at(-1)?.content));
+    return { role: "assistant", content: seen.length === 1 ? sessionUi(tooLong) : sessionUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "layer-session");
+  assert.equal(reply.source, sessionUi());
+  assert.equal(seen.length, 2);
+  assert.match(seen[1], /rejected by the validator: entrypoint: .*\(got 20 words, 99 characters\)/);
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(String(warn.mock.calls[0].arguments[0]), /layer-session attempt 1\/3 rejected: entrypoint/);
+});
+test("presentation gives up after three invalid attempts and never leaks details to the client error", async t => {
+  t.mock.method(console, "warn", () => {});
+  let calls = 0;
+  await assert.rejects(runPresentationAgent(async () => { calls++; return { role: "assistant", content: "root = Text(\"nope\")" }; }, async () => { throw new Error("no storage"); }, undefined, "layer-session"), (error: Error & { detail?: string }) => {
+    assert.equal(error.message, "The assistant returned an invalid presentation. Please retry.");
+    assert.ok(error.detail);
+    return true;
+  });
+  assert.equal(calls, 3);
 });
