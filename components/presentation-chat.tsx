@@ -9,12 +9,14 @@ import { SessionLayerCanvas } from "./session-layer";
 import { OrchestrationLayerCanvas } from "./orchestration-layer";
 import { OperationsLayerCanvas } from "./operations-layer";
 import { InferenceLayerCanvas } from "./inference-layer";
+import { TracingPrincipleCanvas } from "./tracing-principle";
+import { ClosingLinksCanvas } from "./closing-links";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createLibrary, defineComponent, Renderer } from "@openuidev/react-lang";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { z } from "zod/v4";
-import { presentationSteps, presentationTitleProps, presentationPhotoProps, presentationReplySchema, presentationPhotoSchema, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, operationsLayerProps, inferenceLayerProps, type PresentationReply, type PresentationStepId } from "@/lib/shared/presentation-contract";
+import { presentationSteps, presentationTitleProps, presentationPhotoProps, presentationReplySchema, presentationPhotoSchema, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, operationsLayerProps, inferenceLayerProps, tracingPrincipleProps, closingLinksProps, type PresentationReply, type PresentationStepId } from "@/lib/shared/presentation-contract";
 
 const PhotoContext = createContext<z.infer<typeof presentationPhotoSchema> | null>(null);
 function OpeningPhoto() {
@@ -38,8 +40,10 @@ const SessionLayer = defineComponent({ name: "SessionLayer", description: "Layer
 const OrchestrationLayer = defineComponent({ name: "OrchestrationLayer", description: "Layer 2 orchestration walkthrough", props: orchestrationLayerProps, component: ({ props }) => <OrchestrationLayerCanvas {...props} /> });
 const OperationsLayer = defineComponent({ name: "OperationsLayer", description: "Layer 3 deterministic operations walkthrough", props: operationsLayerProps, component: ({ props }) => <OperationsLayerCanvas {...props} /> });
 const InferenceLayer = defineComponent({ name: "InferenceLayer", description: "Layer 4 model inference walkthrough", props: inferenceLayerProps, component: ({ props }) => <InferenceLayerCanvas {...props} /> });
-const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref, OperationsLayer.ref, InferenceLayer.ref])) }), component: ({ props, renderNode }) => <div className="presentation-canvas">{renderNode(props.children)}</div> });
-const library = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer, OperationsLayer, InferenceLayer] });
+const TracingPrinciple = defineComponent({ name: "TracingPrinciple", description: "Tracing principle with an event sorter", props: tracingPrincipleProps, component: ({ props }) => <TracingPrincipleCanvas {...props} /> });
+const ClosingLinks = defineComponent({ name: "ClosingLinks", description: "Closing QR links", props: closingLinksProps, component: ({ props }) => <ClosingLinksCanvas {...props} /> });
+const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref, OperationsLayer.ref, InferenceLayer.ref, TracingPrinciple.ref, ClosingLinks.ref])) }), component: ({ props, renderNode }) => <div className="presentation-canvas">{renderNode(props.children)}</div> });
+const library = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer, OperationsLayer, InferenceLayer, TracingPrinciple, ClosingLinks] });
 /** Steps whose canvas has internal topics; the primary button walks them before the next chapter. */
 const topicCounts: Partial<Record<PresentationStepId, number>> = { "what-is-langfuse": 4, "architecture-layers": 4, "layer-session": 4, "layer-orchestration": 4, "layer-operations": 4, "layer-inference": 4 };
 const topicLabels: Partial<Record<PresentationStepId, string>> = { "architecture-layers": "Next layer", "layer-session": "Next step", "layer-orchestration": "Next step", "layer-operations": "Next step", "layer-inference": "Next step" };
@@ -102,7 +106,7 @@ export function PresentationChat({ active, showSource }: { active: boolean; show
       {error && <p className="agent-error" role="alert">{error}</p>}
       <button className="presentation-step-button" onClick={advance} disabled={busy || (!advancingTopic && !nextStep)} aria-describedby={awaitingChapter ? "chapter-pending" : !nextStep && !advancingTopic ? "finish-pending" : undefined}>{busy ? "Preparing…" : label}<ArrowRight size={18} /></button>
       {awaitingChapter && <p id="chapter-pending" className="presentation-pending">The next chapter has not been defined yet.</p>}
-      {!nextStep && !advancingTopic && !awaitingChapter && <p id="finish-pending" className="presentation-pending">Finish behavior will be defined in a later step.</p>}
+      {!nextStep && !advancingTopic && !awaitingChapter && <p id="finish-pending" className="presentation-pending">End of the presentation. Thanks for following along.</p>}
     </div></div>
   </div>;
 }
