@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -91,4 +91,46 @@ test("overview agent resolves its prompt, skips photo storage, and returns a pho
   assert.ok(presentationReplySchema.safeParse(reply).success);
   assert.ok(!presentationReplySchema.safeParse({ ...reply, photo }).success);
   assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "what-is-langfuse" }).success);
+});
+
+const architectureCopy = [
+  "The system is still an AI execution tree; what changes is who instruments each layer: Langfuse @observe decorators, LiteLLM and Scores.",
+  "The interaction session opens one Trace with user and business context.",
+  "The orchestrator plans each step and records it as a Span.",
+  "Deterministic operations like tools and retrievers each become a Span.",
+  "Every AI model invocation becomes a Generation with tokens and cost.",
+];
+const architectureUi = (copy = architectureCopy) => `root = Response([layers])\nlayers = ArchitectureLayers(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("architecture accepts plain-text copy only and canonicalizes literals", () => {
+  assert.equal(validatePresentationUi(architectureUi(), "architecture-layers"), architectureUi());
+  const props = { summary: architectureCopy[0], session: architectureCopy[1], orchestration: architectureCopy[2], operation: architectureCopy[3], inference: architectureCopy[4] };
+  assert.ok(architectureLayersProps.safeParse(props).success);
+  assert.ok(!architectureLayersProps.safeParse({ ...props, extra: "untrusted" }).success);
+  for (const invalid of ["", "word ".repeat(17).trim(), "a".repeat(121), "Uses interaction.session as the root", "Calls update_current_trace", "`@observe()` decorator", "<b>Trace</b>", "See https://langfuse.com"]) {
+    assert.throws(() => validatePresentationUi(architectureUi([architectureCopy[0], invalid, ...architectureCopy.slice(2)]), "architecture-layers"), /invalid presentation/);
+  }
+  assert.throws(() => validatePresentationUi(architectureUi(["word ".repeat(29).trim(), ...architectureCopy.slice(1)]), "architecture-layers"), /invalid presentation/);
+  for (const source of [architectureUi().replace("ArchitectureLayers", "LangfuseOverview"), architectureUi().replace("[layers]", "[layers, layers]"), architectureUi() + '\nextra = Query("secret", {})', architectureUi().replace(/\)$/, ', "extra")'), architectureUi().replace(/, "Every[^\n]+$/, ")")]) assert.throws(() => validatePresentationUi(source, "architecture-layers"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(architectureUi(), "what-is-langfuse"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(overviewUi(), "architecture-layers"), /invalid presentation/);
+});
+test("architecture agent enforces key terms and layer facts, skips storage, returns a photo-free reply", async () => {
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.equal(request.messages[1].content, "How is the architecture instrumented?");
+    for (const term of architectureKeyTerms) assert.ok(system.includes(term), term);
+    for (const layer of architectureLayers) { assert.ok(system.includes(layer.role), layer.role); assert.ok(system.includes(`Langfuse type ${layer.type}`)); }
+    for (const item of architectureInstrumenters) assert.ok(system.includes(item.name));
+    assert.ok(system.includes("ArchitectureLayers(summary, session, orchestration, operation, inference)"));
+    return { role: "assistant", content: architectureUi() };
+  }, async () => { throw new Error("Architecture must not access storage"); }, undefined, "architecture-layers");
+  assert.equal(reply.step, "architecture-layers");
+  assert.ok(!("photo" in reply));
+  assert.ok(presentationReplySchema.safeParse(reply).success);
+  assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "architecture-layers" }).success);
+});
+test("architecture facts map layers to the right instrumenter and Langfuse type", () => {
+  assert.deepEqual(architectureLayers.map(layer => [layer.name, layer.type, layer.instrumentedBy]), [
+    ["interaction.session", "Trace", "langfuse"], ["orchestration.flow", "Span", "langfuse"], ["operation.unit", "Span", "langfuse"], ["model.inference", "Generation", "litellm"],
+  ]);
 });
