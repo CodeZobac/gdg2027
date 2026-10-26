@@ -29,6 +29,14 @@ export const sessionSteps = [
 ] as const;
 export type SessionStepKey = typeof sessionSteps[number]["key"];
 export const sessionKeyTerms = ["root Trace", "business-relevant interaction", "identity", "business context", "final outcome", "cost rollup", "session", "LiteLLM Proxy virtual keys"] as const;
+/** Layer 2 deep-dive: the orchestrator span, from strategy to the Layer 4 boundary. */
+export const orchestrationSteps = [
+  { key: "strategy", title: "Strategy", hint: "agent or chain" },
+  { key: "decisions", title: "Steps & decisions", hint: "Why each operation ran" },
+  { key: "outcome", title: "Final path", hint: "Success, fallback or abort" },
+  { key: "boundary", title: "Boundary", hint: "Business here, technical in Layer 4" },
+] as const;
+export const orchestrationKeyTerms = ["orchestrator", "business decisions", "strategy", "agent", "chain", "decisions", "final path", "business fallback", "abort", "circuit breaker", "manual interruption", "LiteLLM Router", "Layer 4"] as const;
 export const presentationSteps = [{
   id: "opening",
   prompt: "Start the presentation",
@@ -50,13 +58,19 @@ export const presentationSteps = [{
   prompt: "Layer 1: what does the interaction session capture?",
   components: ["SessionLayer"],
   guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 1, the interaction session, which is the root Trace. Facts: an @observe decorator on the application or channel entrypoint creates the root Trace; it represents the full cycle of one business-relevant interaction and aggregates identity, business context and the final outcome. Identity is a user ID, a session ID and tags such as segment and channel. Business context goes in metadata: product or service, plan, region, legal entity, and end customer versus internal. Costs are no longer calculated manually: Langfuse rolls up generation costs per trace and per session. Optional: LiteLLM Proxy virtual keys per team or account add budgets and limits, joining attribution with cost control. Use these key terms naturally where relevant: ${sessionKeyTerms.join(", ")}. Trusted React already renders the code, field names and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, metrics, URLs or markup.`,
+}, {
+  id: "layer-orchestration",
+  prompt: "Layer 2: how does the orchestrator decide?",
+  components: ["OrchestrationLayer"],
+  guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 2, orchestration and reasoning, recorded as a Span under the root Trace. Facts: the orchestrator is decorated with @observe as an agent or as a chain; it decides which steps to run, in which order and with which tools. It keeps only business decisions: technical retries, fallbacks between models, timeouts and rate limits move to the LiteLLM Router or Proxy in Layer 4. Typical metadata: the strategy type (policy based, tool-using agent, workflow graph); steps and decisions, meaning the condition that led to each operation and the final path (success, business fallback or abort); and business control signals such as manual interruptions and flow circuit breakers. Use these key terms naturally where relevant: ${orchestrationKeyTerms.join(", ")}. Trusted React already renders the code, field names, the decision flow and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, metrics, URLs or markup.`,
 }] as const;
 export type PresentationStepId = typeof presentationSteps[number]["id"];
 export const openingStep = presentationSteps[0];
 export const overviewStep = presentationSteps[1];
 export const architectureStep = presentationSteps[2];
 export const sessionStep = presentationSteps[3];
-export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session"]) }).strict();
+export const orchestrationStep = presentationSteps[4];
+export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration"]) }).strict();
 export const presentationTitleProps = z.object({ title: z.literal(openingStep.title) }).strict();
 export const presentationPhotoProps = z.object({ photoId: z.literal("presentation-opening") }).strict();
 /** Model-written copy: short plain text only, no markup, code, URLs or domain-like tokens. */
@@ -87,11 +101,19 @@ export const sessionLayerProps = z.object({
   context: sessionCaption,
   cost: sessionCaption,
 }).strict();
+export const orchestrationLayerProps = z.object({
+  summary: plainText(28, 200),
+  strategy: sessionCaption,
+  decisions: sessionCaption,
+  outcome: sessionCaption,
+  boundary: sessionCaption,
+}).strict();
 export const presentationPhotoSchema = z.object({ id: z.literal("presentation-opening"), url: z.string().url(), expiresAt: z.string().datetime() }).strict();
 export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("opening"), source: z.string().max(16000), photo: presentationPhotoSchema }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("what-is-langfuse"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("architecture-layers"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-session"), source: z.string().max(16000) }).strict(),
+  z.object({ mode: z.literal("presentation"), step: z.literal("layer-orchestration"), source: z.string().max(16000) }).strict(),
 ]);
 export type PresentationReply = z.infer<typeof presentationReplySchema>;

@@ -6,12 +6,13 @@ import { PresentationHeading } from "./presentation-heading";
 import { LangfuseOverviewCanvas } from "./langfuse-overview";
 import { ArchitectureLayersCanvas } from "./architecture-layers";
 import { SessionLayerCanvas } from "./session-layer";
+import { OrchestrationLayerCanvas } from "./orchestration-layer";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createLibrary, defineComponent, Renderer } from "@openuidev/react-lang";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { z } from "zod/v4";
-import { presentationSteps, presentationTitleProps, presentationPhotoProps, presentationReplySchema, presentationPhotoSchema, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, type PresentationReply, type PresentationStepId } from "@/lib/shared/presentation-contract";
+import { presentationSteps, presentationTitleProps, presentationPhotoProps, presentationReplySchema, presentationPhotoSchema, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, type PresentationReply, type PresentationStepId } from "@/lib/shared/presentation-contract";
 
 const PhotoContext = createContext<z.infer<typeof presentationPhotoSchema> | null>(null);
 function OpeningPhoto() {
@@ -32,11 +33,12 @@ const PresentationPhoto = defineComponent({ name: "PresentationPhoto", descripti
 const LangfuseOverview = defineComponent({ name: "LangfuseOverview", description: "Four pillars of Langfuse", props: langfuseOverviewProps, component: ({ props }) => <LangfuseOverviewCanvas {...props} /> });
 const ArchitectureLayers = defineComponent({ name: "ArchitectureLayers", description: "Four-layer architecture overview", props: architectureLayersProps, component: ({ props }) => <ArchitectureLayersCanvas {...props} /> });
 const SessionLayer = defineComponent({ name: "SessionLayer", description: "Layer 1 interaction session walkthrough", props: sessionLayerProps, component: ({ props }) => <SessionLayerCanvas {...props} /> });
-const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref])) }), component: ({ props, renderNode }) => <div className="presentation-canvas">{renderNode(props.children)}</div> });
-const library = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer] });
+const OrchestrationLayer = defineComponent({ name: "OrchestrationLayer", description: "Layer 2 orchestration walkthrough", props: orchestrationLayerProps, component: ({ props }) => <OrchestrationLayerCanvas {...props} /> });
+const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref])) }), component: ({ props, renderNode }) => <div className="presentation-canvas">{renderNode(props.children)}</div> });
+const library = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer] });
 /** Steps whose canvas has internal topics; the primary button walks them before the next chapter. */
-const topicCounts: Partial<Record<PresentationStepId, number>> = { "what-is-langfuse": 4, "architecture-layers": 4, "layer-session": 4 };
-const topicLabels: Partial<Record<PresentationStepId, string>> = { "architecture-layers": "Next layer", "layer-session": "Next step" };
+const topicCounts: Partial<Record<PresentationStepId, number>> = { "what-is-langfuse": 4, "architecture-layers": 4, "layer-session": 4, "layer-orchestration": 4 };
+const topicLabels: Partial<Record<PresentationStepId, string>> = { "architecture-layers": "Next layer", "layer-session": "Next step", "layer-orchestration": "Next step" };
 
 export function PresentationChat({ active, showSource }: { active: boolean; showSource: boolean }) {
   const [turns, setTurns] = useState<{ step: PresentationStepId; reply?: PresentationReply }[]>([]);
