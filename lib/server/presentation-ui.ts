@@ -1,6 +1,6 @@
 import { createLibrary, defineComponent, createParser } from "@openuidev/lang-core";
 import { z, type ZodType } from "zod/v4";
-import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, type PresentationStepId } from "../shared/presentation-contract";
+import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, type PresentationStepId } from "../shared/presentation-contract";
 import { AgentError } from "./errors";
 
 const PresentationTitle = defineComponent({ name: "PresentationTitle", description: "Required animated presentation title", props: presentationTitleProps, component: null });
@@ -8,8 +8,9 @@ const PresentationPhoto = defineComponent({ name: "PresentationPhoto", descripti
 const LangfuseOverview = defineComponent({ name: "LangfuseOverview", description: "Four plain-text takeaways: observability, promptManagement, evaluation, analytics. Each maximum 12 words and 100 characters; diagrams and required labels are supplied by React.", props: langfuseOverviewProps, component: null });
 const ArchitectureLayers = defineComponent({ name: "ArchitectureLayers", description: "Plain-text summary (maximum 28 words, 200 characters) plus one description per layer: session, orchestration, operation, inference (each maximum 16 words, 120 characters). Layer identifiers, decorator code, Langfuse types and the instrumentation diagram are supplied by React.", props: architectureLayersProps, component: null });
 const SessionLayer = defineComponent({ name: "SessionLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: entrypoint, identity, context, cost (each maximum 16 words, 130 characters). Code, field names, the trace diagram and Demo data are supplied by React.", props: sessionLayerProps, component: null });
-const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref])) }), component: null });
-export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer] });
+const OrchestrationLayer = defineComponent({ name: "OrchestrationLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: strategy, decisions, outcome, boundary (each maximum 16 words, 130 characters). Code, field names, the decision flow and Demo data are supplied by React.", props: orchestrationLayerProps, component: null });
+const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref])) }), component: null });
+export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer] });
 const parser = createParser(presentationUiLibrary.toJSONSchema(), "Response");
 const literals = (values: string[]) => values.map(value => JSON.stringify(value)).join(", ");
 
@@ -52,6 +53,10 @@ export function validatePresentationUi(input: string, step: PresentationStepId =
   if (step === "layer-session") {
     const data = check(sessionLayerProps, single("SessionLayer"));
     return `root = Response([session])\nsession = SessionLayer(${literals([data.summary, data.entrypoint, data.identity, data.context, data.cost])})`;
+  }
+  if (step === "layer-orchestration") {
+    const data = check(orchestrationLayerProps, single("OrchestrationLayer"));
+    return `root = Response([flow])\nflow = OrchestrationLayer(${literals([data.summary, data.strategy, data.decisions, data.outcome, data.boundary])})`;
   }
   if (children.length !== 2) return fail("Response must contain exactly [heading, image]");
   const [title, photo] = children;

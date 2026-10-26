@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -194,4 +194,37 @@ test("presentation gives up after three invalid attempts and never leaks details
     return true;
   });
   assert.equal(calls, 3);
+});
+
+const flowCopy = [
+  "The orchestrator Span records only business decisions: which steps run, in what order, and why.",
+  "Agent or chain tells you how the orchestrator reasons.",
+  "Each decision keeps the condition that triggered an operation.",
+  "The final path shows success, business fallback or a deliberate abort.",
+  "Technical retries, model fallbacks, timeouts and rate limits live in the LiteLLM Router, Layer 4.",
+];
+const flowUi = (copy = flowCopy) => `root = Response([flow])\nflow = OrchestrationLayer(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("orchestration layer accepts plain-text captions only and canonicalizes literals", () => {
+  assert.equal(validatePresentationUi(flowUi(), "layer-orchestration"), flowUi());
+  const props = { summary: flowCopy[0], strategy: flowCopy[1], decisions: flowCopy[2], outcome: flowCopy[3], boundary: flowCopy[4] };
+  assert.ok(orchestrationLayerProps.safeParse(props).success);
+  assert.ok(!orchestrationLayerProps.safeParse({ ...props, extra: "x" }).success);
+  for (const invalid of ["", "word ".repeat(17).trim(), "Uses tool_using_agent strategy", "Span is orchestration.flow", "**bold**"]) {
+    assert.throws(() => validatePresentationUi(flowUi([flowCopy[0], invalid, ...flowCopy.slice(2)]), "layer-orchestration"), /invalid presentation/);
+  }
+  assert.throws(() => validatePresentationUi(flowUi(), "layer-session"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(sessionUi(), "layer-orchestration"), /invalid presentation/);
+});
+test("orchestration agent enforces layer 2 key terms and the Layer 4 boundary", async () => {
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.equal(request.messages[1].content, "Layer 2: how does the orchestrator decide?");
+    for (const term of orchestrationKeyTerms) assert.ok(system.includes(term), term);
+    for (const item of orchestrationSteps) assert.ok(system.includes(item.title), item.title);
+    for (const fact of ["technical retries", "rate limits", "policy based", "workflow graph", "circuit breakers"]) assert.ok(system.includes(fact), fact);
+    assert.ok(system.includes("OrchestrationLayer(summary, strategy, decisions, outcome, boundary)"));
+    return { role: "assistant", content: flowUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "layer-orchestration");
+  assert.equal(reply.step, "layer-orchestration");
+  assert.ok(presentationReplySchema.safeParse(reply).success);
 });
