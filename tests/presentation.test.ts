@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -133,4 +133,40 @@ test("architecture facts map layers to the right instrumenter and Langfuse type"
   assert.deepEqual(architectureLayers.map(layer => [layer.name, layer.type, layer.instrumentedBy]), [
     ["interaction.session", "Trace", "langfuse"], ["orchestration.flow", "Span", "langfuse"], ["operation.unit", "Span", "langfuse"], ["model.inference", "Generation", "litellm"],
   ]);
+});
+
+const sessionCopy = [
+  "The root Trace captures one business-relevant interaction end to end, from identity to final outcome.",
+  "One decorator on the entrypoint opens the root Trace.",
+  "Identity tells you who interacted and in which session.",
+  "Business context lets you slice quality and cost by product or region.",
+  "Cost rollup is automatic per trace and per session.",
+];
+const sessionUi = (copy = sessionCopy) => `root = Response([session])\nsession = SessionLayer(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("session layer accepts plain-text captions only and canonicalizes literals", () => {
+  assert.equal(validatePresentationUi(sessionUi(), "layer-session"), sessionUi());
+  const props = { summary: sessionCopy[0], entrypoint: sessionCopy[1], identity: sessionCopy[2], context: sessionCopy[3], cost: sessionCopy[4] };
+  assert.ok(sessionLayerProps.safeParse(props).success);
+  assert.ok(!sessionLayerProps.safeParse({ ...props, extra: "untrusted" }).success);
+  for (const invalid of ["", "word ".repeat(15).trim(), "a".repeat(111), "Set user_id and session_id", "Root is interaction.session", "<i>cost</i>", "Read www.langfuse.com"]) {
+    assert.throws(() => validatePresentationUi(sessionUi([sessionCopy[0], invalid, ...sessionCopy.slice(2)]), "layer-session"), /invalid presentation/);
+  }
+  assert.throws(() => validatePresentationUi(sessionUi(["word ".repeat(25).trim(), ...sessionCopy.slice(1)]), "layer-session"), /invalid presentation/);
+  for (const source of [sessionUi().replace("SessionLayer", "ArchitectureLayers"), sessionUi().replace("[session]", "[session, session]"), sessionUi() + '\nextra = Query("secret", {})', sessionUi().replace(/, "Cost rollup[^\n]+$/, ")")]) assert.throws(() => validatePresentationUi(source, "layer-session"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(sessionUi(), "architecture-layers"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(architectureUi(), "layer-session"), /invalid presentation/);
+});
+test("session agent enforces layer 1 key terms and facts, skips storage", async () => {
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.equal(request.messages[1].content, "Layer 1: what does the interaction session capture?");
+    for (const term of sessionKeyTerms) assert.ok(system.includes(term), term);
+    for (const item of sessionSteps) assert.ok(system.includes(item.title), item.title);
+    for (const fact of ["legal entity", "per trace and per session", "virtual keys"]) assert.ok(system.includes(fact), fact);
+    assert.ok(system.includes("SessionLayer(summary, entrypoint, identity, context, cost)"));
+    return { role: "assistant", content: sessionUi() };
+  }, async () => { throw new Error("Session must not access storage"); }, undefined, "layer-session");
+  assert.equal(reply.step, "layer-session");
+  assert.ok(presentationReplySchema.safeParse(reply).success);
+  assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-session" }).success);
 });

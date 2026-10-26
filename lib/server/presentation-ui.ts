@@ -1,14 +1,15 @@
 import { createLibrary, defineComponent, createParser } from "@openuidev/lang-core";
 import { z } from "zod/v4";
-import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, type PresentationStepId } from "../shared/presentation-contract";
+import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, type PresentationStepId } from "../shared/presentation-contract";
 import { AgentError } from "./errors";
 
 const PresentationTitle = defineComponent({ name: "PresentationTitle", description: "Required animated presentation title", props: presentationTitleProps, component: null });
 const PresentationPhoto = defineComponent({ name: "PresentationPhoto", description: "Authorized opening image ID only", props: presentationPhotoProps, component: null });
 const LangfuseOverview = defineComponent({ name: "LangfuseOverview", description: "Four plain-text takeaways: observability, promptManagement, evaluation, analytics. Each maximum 12 words and 100 characters; diagrams and required labels are supplied by React.", props: langfuseOverviewProps, component: null });
 const ArchitectureLayers = defineComponent({ name: "ArchitectureLayers", description: "Plain-text summary (maximum 28 words, 200 characters) plus one description per layer: session, orchestration, operation, inference (each maximum 16 words, 120 characters). Layer identifiers, decorator code, Langfuse types and the instrumentation diagram are supplied by React.", props: architectureLayersProps, component: null });
-const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref])) }), component: null });
-export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers] });
+const SessionLayer = defineComponent({ name: "SessionLayer", description: "Plain-text summary (maximum 24 words, 180 characters) plus one caption per step: entrypoint, identity, context, cost (each maximum 14 words, 110 characters). Code, field names, the trace diagram and Demo data are supplied by React.", props: sessionLayerProps, component: null });
+const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref])) }), component: null });
+export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer] });
 const parser = createParser(presentationUiLibrary.toJSONSchema(), "Response");
 const literals = (values: string[]) => values.map(value => JSON.stringify(value)).join(", ");
 
@@ -34,6 +35,11 @@ export function validatePresentationUi(input: string, step: PresentationStepId =
     const props = architectureLayersProps.safeParse(single("ArchitectureLayers"));
     if (!props.success) return fail();
     return `root = Response([layers])\nlayers = ArchitectureLayers(${literals([props.data.summary, props.data.session, props.data.orchestration, props.data.operation, props.data.inference])})`;
+  }
+  if (step === "layer-session") {
+    const props = sessionLayerProps.safeParse(single("SessionLayer"));
+    if (!props.success) return fail();
+    return `root = Response([session])\nsession = SessionLayer(${literals([props.data.summary, props.data.entrypoint, props.data.identity, props.data.context, props.data.cost])})`;
   }
   if (children.length !== 2) return fail();
   const [title, photo] = children;
