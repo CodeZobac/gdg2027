@@ -18,7 +18,7 @@ export const architectureLayers = [
   { key: "orchestration", name: "orchestration.flow", role: "Orchestrator", instrumentation: ['@observe(as_type="agent")', '@observe(as_type="chain")'], note: "Agent or chain", type: "Span", instrumentedBy: "langfuse" },
   { key: "operation", name: "operation.unit", role: "Deterministic operations", instrumentation: ['@observe(as_type="tool")', '@observe(as_type="retriever")'], note: "Tool or retriever", type: "Span", instrumentedBy: "langfuse" },
   { key: "inference", name: "model.inference", role: "AI model invocation", instrumentation: ["litellm.success_callback = [\"langfuse\"]"], note: "Automatic via LiteLLM callback", type: "Generation", instrumentedBy: "litellm" },
-] as const satisfies readonly { instrumentedBy: ArchitectureInstrumenter }[];
+] as const satisfies readonly ({ instrumentedBy: ArchitectureInstrumenter } & Record<string, unknown>)[];
 export const architectureKeyTerms = ["AI execution tree", "interaction session", "orchestrator", "deterministic operations", "AI model invocation", "Langfuse @observe decorators", "LiteLLM", "Langfuse Scores", "Trace", "Span", "Generation"] as const;
 export const presentationSteps = [{
   id: "opening",
