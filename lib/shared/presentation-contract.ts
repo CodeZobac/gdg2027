@@ -45,6 +45,14 @@ export const operationSteps = [
   { key: "quality", title: "Data quality", hint: "Signals worth alerting on" },
 ] as const;
 export const operationKeyTerms = ["hands of the system", "decide", "execute", "Layer 2", "tool", "retriever", "calculations", "queries", "transformations", "external integrations", "retrieval", "summarized inputs and outputs", "sensitive data", "data quality signals", "missing data", "suspicious formats", "ambiguous units", "inconsistent ranges"] as const;
+/** Layer 4 deep-dive: model inference, captured automatically by LiteLLM. */
+export const inferenceSteps = [
+  { key: "automatic", title: "Automatic", hint: "No generation decorator" },
+  { key: "linking", title: "Link to the tree", hint: "OTEL context or explicit IDs" },
+  { key: "capture", title: "Config & usage", hint: "What LiteLLM records" },
+  { key: "context", title: "Prompt & privacy", hint: "Reference, not raw text" },
+] as const;
+export const inferenceKeyTerms = ["automatic", "LiteLLM", "duplicate generations", "Langfuse OTEL callback", "active context", "current span", "classic callback", "trace ID", "parent observation ID", "model group", "fallback", "inference parameters", "normalized tokens", "cost", "latency", "retries", "provider errors", "Prompt Management", "prompt name and version", "masking"] as const;
 export const presentationSteps = [{
   id: "opening",
   prompt: "Start the presentation",
@@ -76,6 +84,11 @@ export const presentationSteps = [{
   prompt: "Layer 3: what do deterministic operations record?",
   components: ["OperationsLayer"],
   guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 3, deterministic operations, recorded as Spans under the orchestrator. Facts: these operations are the hands of the system: calculations, queries, transformations, external integrations and retrieval. They separate deciding (Layer 2) from executing (Layer 3). Tools and integrations use @observe as a tool; document retrieval uses @observe as a retriever. Typical metadata: the operation type; summarized inputs and outputs, turning automatic input and output capture off and updating the span manually when data is heavy or sensitive; and data quality signals: missing data, suspicious formats, ambiguous units and inconsistent ranges. Use these key terms naturally where relevant: ${operationKeyTerms.join(", ")}. Trusted React already renders the code, field names, the span tree and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, metrics, URLs or markup.`,
+}, {
+  id: "layer-inference",
+  prompt: "Layer 4: how is each model call captured?",
+  components: ["InferenceLayer"],
+  guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 4, model inference, recorded as a Generation. Facts: capture is automatic through LiteLLM; never wrap the LiteLLM completion call with an @observe generation decorator, because that would create duplicate generations. Linking to the tree: with the Langfuse SDK v3, the Langfuse OTEL callback inherits the active context and nests the generation under the current span; with the classic callback, pass the trace ID and parent observation ID in the call metadata. LiteLLM captures configuration (model, model group, the model actually used after a fallback, inference parameters) and usage (tokens normalized across providers, cost, latency, retries, provider errors). Context: reference the prompt name and version from Langfuse Prompt Management instead of raw prompt text, and use masking in the SDK for sensitive data. Use these key terms naturally where relevant: ${inferenceKeyTerms.join(", ")}. Trusted React already renders the code, field names, the generation tree and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, model identifiers, metrics, URLs or markup.`,
 }] as const;
 export type PresentationStepId = typeof presentationSteps[number]["id"];
 export const openingStep = presentationSteps[0];
@@ -84,7 +97,8 @@ export const architectureStep = presentationSteps[2];
 export const sessionStep = presentationSteps[3];
 export const orchestrationStep = presentationSteps[4];
 export const operationsStep = presentationSteps[5];
-export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration", "layer-operations"]) }).strict();
+export const inferenceStep = presentationSteps[6];
+export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration", "layer-operations", "layer-inference"]) }).strict();
 export const presentationTitleProps = z.object({ title: z.literal(openingStep.title) }).strict();
 export const presentationPhotoProps = z.object({ photoId: z.literal("presentation-opening") }).strict();
 /** Model-written copy: short plain text only, no markup, code, URLs or domain-like tokens. */
@@ -129,6 +143,13 @@ export const operationsLayerProps = z.object({
   io: sessionCaption,
   quality: sessionCaption,
 }).strict();
+export const inferenceLayerProps = z.object({
+  summary: plainText(28, 200),
+  automatic: sessionCaption,
+  linking: sessionCaption,
+  capture: sessionCaption,
+  context: sessionCaption,
+}).strict();
 export const presentationPhotoSchema = z.object({ id: z.literal("presentation-opening"), url: z.string().url(), expiresAt: z.string().datetime() }).strict();
 export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("opening"), source: z.string().max(16000), photo: presentationPhotoSchema }).strict(),
@@ -137,5 +158,6 @@ export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-session"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-orchestration"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-operations"), source: z.string().max(16000) }).strict(),
+  z.object({ mode: z.literal("presentation"), step: z.literal("layer-inference"), source: z.string().max(16000) }).strict(),
 ]);
 export type PresentationReply = z.infer<typeof presentationReplySchema>;

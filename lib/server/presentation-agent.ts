@@ -1,5 +1,5 @@
 import "server-only";
-import { openingStep, presentationSteps, overviewCategories, architectureLayers, architectureInstrumenters, sessionSteps, orchestrationSteps, operationSteps, presentationPhotoSchema, type PresentationReply, type PresentationStepId } from "../shared/presentation-contract";
+import { openingStep, presentationSteps, overviewCategories, architectureLayers, architectureInstrumenters, sessionSteps, orchestrationSteps, operationSteps, inferenceSteps, presentationPhotoSchema, type PresentationReply, type PresentationStepId } from "../shared/presentation-contract";
 import type { Generate } from "./agent-loop";
 import { generateDeepSeek } from "./deepseek";
 import { getPresentationPhoto } from "./supabase-photos";
@@ -15,6 +15,11 @@ function stepRules(stepId: PresentationStepId, components: readonly string[]): s
   if (stepId === "what-is-langfuse") return [
     `Return root = Response([overview]) and overview = LangfuseOverview(observability, promptManagement, evaluation, analytics). Only component allowed: ${components.join(", ")}. Each argument is a takeaway string. Aim for 6–9 words; hard maximum 12 words and 100 characters. Count words before responding.`,
     ...overviewCategories.map(category => `${category.key} (${category.title}): teaching points already rendered by trusted React: ${JSON.stringify(category.terms)}. Do not repeat this list; supply a short benefit takeaway.`),
+  ];
+  if (stepId === "layer-inference") return [
+    `Return root = Response([gen]) and gen = InferenceLayer(summary, automatic, linking, capture, context). Only component allowed: ${components.join(", ")}. Every argument is a plain-text string. summary: one sentence, 14–20 words, hard maximum 28 words and 200 characters, saying LiteLLM captures every model call as a Generation automatically. Each step caption: 6–10 words, hard maximum 16 words and 130 characters, explaining why the step matters. Count words before responding.`,
+    ...inferenceSteps.map((item, index) => `${item.key} (step ${index + 1}, ${item.title}): React shows "${item.hint}". Caption the benefit of this step in plain words.`),
+    "automatic caption must warn that a generation decorator would duplicate generations. Write callback names in words (Langfuse OTEL callback), never with underscores or dots.",
   ];
   if (stepId === "layer-operations") return [
     `Return root = Response([ops]) and ops = OperationsLayer(summary, separation, type, io, quality). Only component allowed: ${components.join(", ")}. Every argument is a plain-text string. summary: one sentence, 14–20 words, hard maximum 28 words and 200 characters, calling these operations the hands of the system. Each step caption: 6–10 words, hard maximum 16 words and 130 characters, explaining why the step matters. Count words before responding.`,
@@ -74,6 +79,7 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
     }
   }
   if (stepId === "opening" && photo) return { mode: "presentation", step: "opening", source, photo };
+  if (stepId === "layer-inference") return { mode: "presentation", step: "layer-inference", source };
   if (stepId === "layer-operations") return { mode: "presentation", step: "layer-operations", source };
   if (stepId === "layer-orchestration") return { mode: "presentation", step: "layer-orchestration", source };
   if (stepId === "layer-session") return { mode: "presentation", step: "layer-session", source };

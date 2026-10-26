@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps, operationKeyTerms, operationSteps, operationsLayerProps } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps, operationKeyTerms, operationSteps, operationsLayerProps, inferenceKeyTerms, inferenceSteps, inferenceLayerProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -261,4 +261,38 @@ test("operations agent enforces layer 3 key terms and facts", async () => {
   assert.equal(reply.step, "layer-operations");
   assert.ok(presentationReplySchema.safeParse(reply).success);
   assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-operations" }).success);
+});
+
+const genCopy = [
+  "LiteLLM captures every model call as a Generation automatically, nested in the right place of the tree.",
+  "No generation decorator needed; adding one would duplicate generations.",
+  "The Langfuse OTEL callback inherits the active context and nests under the current span.",
+  "Model group, fallback, normalized tokens, cost, latency, retries and provider errors in one place.",
+  "Reference the prompt name and version, and mask sensitive data.",
+];
+const genUi = (copy = genCopy) => `root = Response([gen])\ngen = InferenceLayer(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("inference layer accepts plain-text captions only and canonicalizes literals", () => {
+  assert.equal(validatePresentationUi(genUi(), "layer-inference"), genUi());
+  const props = { summary: genCopy[0], automatic: genCopy[1], linking: genCopy[2], capture: genCopy[3], context: genCopy[4] };
+  assert.ok(inferenceLayerProps.safeParse(props).success);
+  assert.ok(!inferenceLayerProps.safeParse({ ...props, extra: "x" }).success);
+  for (const invalid of ["", "word ".repeat(17).trim(), "Use the langfuse_otel callback", "Calls litellm.completion directly", "Pass parent_observation_id", "`model`"]) {
+    assert.throws(() => validatePresentationUi(genUi([genCopy[0], invalid, ...genCopy.slice(2)]), "layer-inference"), /invalid presentation/);
+  }
+  assert.throws(() => validatePresentationUi(genUi(), "layer-operations"), /invalid presentation/);
+  assert.throws(() => validatePresentationUi(opsUi(), "layer-inference"), /invalid presentation/);
+});
+test("inference agent enforces layer 4 key terms and the no-duplicate rule", async () => {
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.equal(request.messages[1].content, "Layer 4: how is each model call captured?");
+    for (const term of inferenceKeyTerms) assert.ok(system.includes(term), term);
+    for (const item of inferenceSteps) assert.ok(system.includes(item.title), item.title);
+    for (const fact of ["duplicate generations", "inherits the active context", "trace ID and parent observation ID", "after a fallback", "masking in the SDK"]) assert.ok(system.includes(fact), fact);
+    assert.ok(system.includes("InferenceLayer(summary, automatic, linking, capture, context)"));
+    return { role: "assistant", content: genUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "layer-inference");
+  assert.equal(reply.step, "layer-inference");
+  assert.ok(presentationReplySchema.safeParse(reply).success);
+  assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-inference" }).success);
 });
