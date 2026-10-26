@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /** Shared title treatment for every presentation canvas. */
 export function PresentationHeading({ title, punctuation, subtitle, level = "h2", label }: {
   title: string;
-  punctuation: ":" | "?";
+  punctuation: ":" | "?" | "!";
   subtitle?: ReactNode;
   level?: "h1" | "h2";
   label?: string;

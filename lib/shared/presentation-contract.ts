@@ -53,6 +53,27 @@ export const inferenceSteps = [
   { key: "context", title: "Prompt & privacy", hint: "Reference, not raw text" },
 ] as const;
 export const inferenceKeyTerms = ["automatic", "LiteLLM", "duplicate generations", "Langfuse OTEL callback", "active context", "current span", "classic callback", "trace ID", "parent observation ID", "model group", "fallback", "inference parameters", "normalized tokens", "cost", "latency", "retries", "provider errors", "Prompt Management", "prompt name and version", "masking"] as const;
+/** Closing principle: the statement is trusted copy, never model-generated. */
+export const tracingPrinciple = "If an event doesn't help explain system behavior or attribute cost or risk, don't trace it.";
+export const principleQuestions = [
+  { key: "behavior", label: "Explains system behavior?" },
+  { key: "attribution", label: "Attributes cost or risk?" },
+] as const;
+/** Demo events for the sorter. `behavior` / `attribution` are the trusted verdicts. */
+export const principleEvents = [
+  { key: "fallback", label: "Model fallback reason", layer: "Layer 4", behavior: true, attribution: true },
+  { key: "identity", label: "user_id + plan on the root trace", layer: "Layer 1", behavior: false, attribution: true },
+  { key: "decision", label: "Why the orchestrator chose a tool", layer: "Layer 2", behavior: true, attribution: false },
+  { key: "loop", label: "Every loop iteration in a helper", layer: "Noise", behavior: false, attribution: false },
+  { key: "health", label: "Health-check pings every 5 s", layer: "Noise", behavior: false, attribution: false },
+  { key: "payload", label: "Raw base64 image payload", layer: "Noise", behavior: false, attribution: false },
+] as const;
+export const principleKeyTerms = ["explain system behavior", "attribute cost", "risk", "signal", "noise", "trace"] as const;
+/** Trusted closing links. URLs never come from the model. */
+export const closingLinks = [
+  { key: "profile", title: "GitHub profile", handle: "@CodeZobac", url: "https://github.com/CodeZobac" },
+  { key: "repository", title: "This presentation", handle: "CodeZobac/gdg2027", url: "https://github.com/CodeZobac/gdg2027" },
+] as const;
 export const presentationSteps = [{
   id: "opening",
   prompt: "Start the presentation",
@@ -89,6 +110,16 @@ export const presentationSteps = [{
   prompt: "Layer 4: how is each model call captured?",
   components: ["InferenceLayer"],
   guidelines: `Write a plain-text summary and four short step captions for a visual, beginner-friendly walkthrough of layer 4, model inference, recorded as a Generation. Facts: capture is automatic through LiteLLM; never wrap the LiteLLM completion call with an @observe generation decorator, because that would create duplicate generations. Linking to the tree: with the Langfuse SDK v3, the Langfuse OTEL callback inherits the active context and nests the generation under the current span; with the classic callback, pass the trace ID and parent observation ID in the call metadata. LiteLLM captures configuration (model, model group, the model actually used after a fallback, inference parameters) and usage (tokens normalized across providers, cost, latency, retries, provider errors). Context: reference the prompt name and version from Langfuse Prompt Management instead of raw prompt text, and use masking in the SDK for sensitive data. Use these key terms naturally where relevant: ${inferenceKeyTerms.join(", ")}. Trusted React already renders the code, field names, the generation tree and fixed Demo data. Keep it simple and visual. Never write code, field names with underscores, dotted identifiers, model identifiers, metrics, URLs or markup.`,
+}, {
+  id: "tracing-principle",
+  prompt: "So what should we trace?",
+  components: ["TracingPrinciple"],
+  guidelines: `Write a short plain-text lead-in and a short takeaway for a slide built around one trusted principle that React renders verbatim: "${tracingPrinciple}". The audience sorts example events with two questions: does it explain system behavior, and does it attribute cost or risk. Events that answer yes to either are signal and get traced; the rest are noise. Use these key terms naturally where relevant: ${principleKeyTerms.join(", ")}. Do not restate the principle word for word and do not invent events. Never write code, underscores, dotted identifiers, metrics, URLs or markup.`,
+}, {
+  id: "closing",
+  prompt: "Where can I find this?",
+  components: ["ClosingLinks"],
+  guidelines: "Write a short plain-text thank-you line and one short caption per link card for the closing slide of a Langfuse talk at GDG Faro. React already renders the QR codes, URLs and handles from trusted data: the speaker's GitHub profile and the repository of this very presentation app. Invite people to scan, explore the code and follow along. Never write URLs, handles, domain names, code, underscores, markup or emojis.",
 }] as const;
 export type PresentationStepId = typeof presentationSteps[number]["id"];
 export const openingStep = presentationSteps[0];
@@ -98,7 +129,9 @@ export const sessionStep = presentationSteps[3];
 export const orchestrationStep = presentationSteps[4];
 export const operationsStep = presentationSteps[5];
 export const inferenceStep = presentationSteps[6];
-export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration", "layer-operations", "layer-inference"]) }).strict();
+export const principleStep = presentationSteps[7];
+export const closingStep = presentationSteps[8];
+export const presentationRequestSchema = z.object({ mode: z.literal("presentation"), step: z.enum(["opening", "what-is-langfuse", "architecture-layers", "layer-session", "layer-orchestration", "layer-operations", "layer-inference", "tracing-principle", "closing"]) }).strict();
 export const presentationTitleProps = z.object({ title: z.literal(openingStep.title) }).strict();
 export const presentationPhotoProps = z.object({ photoId: z.literal("presentation-opening") }).strict();
 /** Model-written copy: short plain text only, no markup, code, URLs or domain-like tokens. */
@@ -150,6 +183,15 @@ export const inferenceLayerProps = z.object({
   capture: sessionCaption,
   context: sessionCaption,
 }).strict();
+export const tracingPrincipleProps = z.object({
+  lead: plainText(20, 140),
+  takeaway: plainText(16, 120),
+}).strict();
+export const closingLinksProps = z.object({
+  thanks: plainText(14, 100),
+  profile: plainText(12, 90),
+  repository: plainText(12, 90),
+}).strict();
 export const presentationPhotoSchema = z.object({ id: z.literal("presentation-opening"), url: z.string().url(), expiresAt: z.string().datetime() }).strict();
 export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("opening"), source: z.string().max(16000), photo: presentationPhotoSchema }).strict(),
@@ -159,5 +201,7 @@ export const presentationReplySchema = z.discriminatedUnion("step", [
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-orchestration"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-operations"), source: z.string().max(16000) }).strict(),
   z.object({ mode: z.literal("presentation"), step: z.literal("layer-inference"), source: z.string().max(16000) }).strict(),
+  z.object({ mode: z.literal("presentation"), step: z.literal("tracing-principle"), source: z.string().max(16000) }).strict(),
+  z.object({ mode: z.literal("presentation"), step: z.literal("closing"), source: z.string().max(16000) }).strict(),
 ]);
 export type PresentationReply = z.infer<typeof presentationReplySchema>;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps, operationKeyTerms, operationSteps, operationsLayerProps, inferenceKeyTerms, inferenceSteps, inferenceLayerProps } from "../lib/shared/presentation-contract";
+import { openingStep, overviewCategories, langfuseOverviewProps, presentationReplySchema, presentationRequestSchema, architectureLayers, architectureInstrumenters, architectureKeyTerms, architectureLayersProps, sessionKeyTerms, sessionSteps, sessionLayerProps, orchestrationKeyTerms, orchestrationSteps, orchestrationLayerProps, operationKeyTerms, operationSteps, operationsLayerProps, inferenceKeyTerms, inferenceSteps, inferenceLayerProps, tracingPrinciple, principleKeyTerms, principleEvents, tracingPrincipleProps, closingLinks, closingLinksProps } from "../lib/shared/presentation-contract";
 import { validatePresentationUi } from "../lib/server/presentation-ui";
 import { runPresentationAgent } from "../lib/server/presentation-agent";
 import { getPresentationPhoto } from "../lib/server/supabase-photos";
@@ -295,4 +295,33 @@ test("inference agent enforces layer 4 key terms and the no-duplicate rule", asy
   assert.equal(reply.step, "layer-inference");
   assert.ok(presentationReplySchema.safeParse(reply).success);
   assert.ok(presentationRequestSchema.safeParse({ mode: "presentation", step: "layer-inference" }).success);
+});
+
+const principleUi = (lead = "More traces are not more insight; every span should earn its place.", takeaway = "Trace the signal, drop the noise.") => `root = Response([principle])\nprinciple = TracingPrinciple(${JSON.stringify(lead)}, ${JSON.stringify(takeaway)})`;
+test("tracing principle keeps the statement trusted and accepts only short plain-text copy", async () => {
+  assert.equal(validatePresentationUi(principleUi(), "tracing-principle"), principleUi());
+  for (const invalid of ["", "word ".repeat(17).trim(), "Drop health_check spans", "See langfuse.com"]) assert.throws(() => validatePresentationUi(principleUi(undefined, invalid), "tracing-principle"), /invalid presentation/);
+  assert.ok(!tracingPrincipleProps.safeParse({ lead: "a", takeaway: "b", principle: "override" }).success);
+  assert.throws(() => validatePresentationUi(principleUi(), "closing"), /invalid presentation/);
+  assert.ok(principleEvents.some(e => e.behavior || e.attribution) && principleEvents.some(e => !e.behavior && !e.attribution));
+  const reply = await runPresentationAgent(async request => {
+    const system = request.messages[0].content ?? "";
+    assert.ok(system.includes(tracingPrinciple));
+    for (const term of principleKeyTerms) assert.ok(system.includes(term), term);
+    return { role: "assistant", content: principleUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "tracing-principle");
+  assert.equal(reply.step, "tracing-principle");
+});
+const closingUi = (copy = ["Thank you for joining us at GDG Faro.", "Follow along for more experiments.", "Explore the code behind every slide."]) => `root = Response([links])\nlinks = ClosingLinks(${copy.map(text => JSON.stringify(text)).join(", ")})`;
+test("closing links never accept URLs or handles from the model", async () => {
+  assert.equal(validatePresentationUi(closingUi(), "closing"), closingUi());
+  for (const invalid of ["Visit github.com/CodeZobac", "https://evil.example", "Scan <b>me</b>", "word ".repeat(13).trim()]) assert.throws(() => validatePresentationUi(closingUi(["Thanks!", invalid, "Explore."]), "closing"), /invalid presentation/);
+  assert.ok(!closingLinksProps.safeParse({ thanks: "a", profile: "b", repository: "c", url: "x" }).success);
+  assert.deepEqual(closingLinks.map(link => link.url), ["https://github.com/CodeZobac", "https://github.com/CodeZobac/gdg2027"]);
+  const reply = await runPresentationAgent(async request => {
+    assert.ok(!(request.messages[0].content ?? "").includes("https://"), "URLs stay out of the model prompt");
+    return { role: "assistant", content: closingUi() };
+  }, async () => { throw new Error("no storage"); }, undefined, "closing");
+  assert.equal(reply.step, "closing");
+  assert.ok(presentationReplySchema.safeParse(reply).success);
 });

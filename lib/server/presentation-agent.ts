@@ -16,6 +16,12 @@ function stepRules(stepId: PresentationStepId, components: readonly string[]): s
     `Return root = Response([overview]) and overview = LangfuseOverview(observability, promptManagement, evaluation, analytics). Only component allowed: ${components.join(", ")}. Each argument is a takeaway string. Aim for 6–9 words; hard maximum 12 words and 100 characters. Count words before responding.`,
     ...overviewCategories.map(category => `${category.key} (${category.title}): teaching points already rendered by trusted React: ${JSON.stringify(category.terms)}. Do not repeat this list; supply a short benefit takeaway.`),
   ];
+  if (stepId === "tracing-principle") return [
+    `Return root = Response([principle]) and principle = TracingPrinciple(lead, takeaway). Only component allowed: ${components.join(", ")}. Both arguments are plain-text strings. lead: one sentence, 10–16 words, hard maximum 20 words and 140 characters, framing why less tracing can mean better observability. takeaway: 8–12 words, hard maximum 16 words and 120 characters, contrasting signal with noise. Count words before responding.`,
+  ];
+  if (stepId === "closing") return [
+    `Return root = Response([links]) and links = ClosingLinks(thanks, profile, repository). Only component allowed: ${components.join(", ")}. All arguments are plain-text strings. thanks: 6–10 words, hard maximum 14 words and 100 characters. profile: 6–10 words, hard maximum 12 words and 90 characters, inviting people to follow the speaker. repository: 6–10 words, hard maximum 12 words and 90 characters, inviting people to explore this app's code. Count words before responding.`,
+  ];
   if (stepId === "layer-inference") return [
     `Return root = Response([gen]) and gen = InferenceLayer(summary, automatic, linking, capture, context). Only component allowed: ${components.join(", ")}. Every argument is a plain-text string. summary: one sentence, 14–20 words, hard maximum 28 words and 200 characters, saying LiteLLM captures every model call as a Generation automatically. Each step caption: 6–10 words, hard maximum 16 words and 130 characters, explaining why the step matters. Count words before responding.`,
     ...inferenceSteps.map((item, index) => `${item.key} (step ${index + 1}, ${item.title}): React shows "${item.hint}". Caption the benefit of this step in plain words.`),
@@ -79,6 +85,8 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
     }
   }
   if (stepId === "opening" && photo) return { mode: "presentation", step: "opening", source, photo };
+  if (stepId === "tracing-principle") return { mode: "presentation", step: "tracing-principle", source };
+  if (stepId === "closing") return { mode: "presentation", step: "closing", source };
   if (stepId === "layer-inference") return { mode: "presentation", step: "layer-inference", source };
   if (stepId === "layer-operations") return { mode: "presentation", step: "layer-operations", source };
   if (stepId === "layer-orchestration") return { mode: "presentation", step: "layer-orchestration", source };
