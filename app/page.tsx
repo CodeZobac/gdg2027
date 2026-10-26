@@ -23,7 +23,6 @@ export default function Home() {
   const [sidebar, setSidebar] = useState(false);
   const [panel, setPanel] = useState<"about" | "photos" | null>(null);
   const [showSource, setShowSource] = useState(false);
-  const [history, setHistory] = useState<{ title: string; messages: Message[] }[]>([]);
   const dialog = useRef<HTMLElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -92,7 +91,6 @@ export default function Home() {
     setTab("chat");
     requestController.current?.abort();
     setError("");
-    if (messages.length) setHistory(previous => [{ title: messages[0].text, messages }, ...previous].slice(0, 8));
     setMessages([]); setDraft(""); setBusy(false); setSidebar(false); input.current?.focus();
   }
 
@@ -108,15 +106,6 @@ export default function Home() {
           <button className={`nav-item ${tab === "presentation" ? "active" : ""}`} onClick={() => { setTab("presentation"); setPanel(null); setSidebar(false); }}><Sparkles size={18} /> Presentation {tab === "presentation" && <span className="nav-dot" />}</button>
           <button className={`nav-item ${panel === "photos" ? "active" : ""}`} onClick={() => { setPanel("photos"); setSidebar(false); }}><Images size={18} /> Last year&apos;s gallery </button>
         </nav>
-        <div className="history-heading">YOUR CONVERSATIONS <span>{history.length.toString().padStart(2, "0")}</span></div>
-        <div className="history-list">
-          {history.length ? history.map((chat, index) => <button key={index} className="history-item" onClick={() => { requestController.current?.abort(); setError(""); setBusy(false); setMessages(chat.messages); setTab("chat"); setSidebar(false); }}><MessageSquare size={14} /><span>{chat.title}</span></button>) : <div className="empty-history"><span className="history-line" /><p>A little curiosity goes a long way.</p><span>Your conversations will appear here.</span></div>}
-        </div>
-        <div className="sidebar-bottom">
-          <div className="build-note"><span className="code-icon"><Code2 size={19} /></span><div><strong>Built to explore.</strong><p>A little AI. A lot of possibility.</p></div><ArrowUp size={15} className="diagonal-arrow" /></div>
-          <button className="about-button" onClick={() => setPanel("about")}><Info size={17} /> About this app <ArrowRight size={15} /></button>
-          <div className="community-profile"><span className="profile-mark">F</span><div><strong>GDG Faro community</strong><span>Learn. Build. Share.</span></div><span className="online-dot" /></div>
-        </div>
       </aside>
 
       <div className="main-shell">
