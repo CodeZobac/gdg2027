@@ -1,5 +1,5 @@
 import "server-only";
-import { openingStep, presentationSteps, overviewCategories, architectureLayers, architectureInstrumenters, sessionSteps, presentationPhotoSchema, type PresentationReply, type PresentationStepId } from "../shared/presentation-contract";
+import { openingStep, presentationSteps, overviewCategories, architectureLayers, architectureInstrumenters, sessionSteps, orchestrationSteps, presentationPhotoSchema, type PresentationReply, type PresentationStepId } from "../shared/presentation-contract";
 import type { Generate } from "./agent-loop";
 import { generateDeepSeek } from "./deepseek";
 import { getPresentationPhoto } from "./supabase-photos";
@@ -15,6 +15,11 @@ function stepRules(stepId: PresentationStepId, components: readonly string[]): s
   if (stepId === "what-is-langfuse") return [
     `Return root = Response([overview]) and overview = LangfuseOverview(observability, promptManagement, evaluation, analytics). Only component allowed: ${components.join(", ")}. Each argument is a takeaway string. Aim for 6–9 words; hard maximum 12 words and 100 characters. Count words before responding.`,
     ...overviewCategories.map(category => `${category.key} (${category.title}): teaching points already rendered by trusted React: ${JSON.stringify(category.terms)}. Do not repeat this list; supply a short benefit takeaway.`),
+  ];
+  if (stepId === "layer-orchestration") return [
+    `Return root = Response([flow]) and flow = OrchestrationLayer(summary, strategy, decisions, outcome, boundary). Only component allowed: ${components.join(", ")}. Every argument is a plain-text string. summary: one sentence, 14–20 words, hard maximum 28 words and 200 characters, saying the orchestrator Span records business decisions only. Each step caption: 6–10 words, hard maximum 16 words and 130 characters, explaining why the step matters. Count words before responding.`,
+    ...orchestrationSteps.map((item, index) => `${item.key} (step ${index + 1}, ${item.title}): React shows "${item.hint}". Caption the benefit of this step in plain words.`),
+    "boundary caption must say technical retries, model fallbacks, timeouts and rate limits belong to the LiteLLM Router in Layer 4. Write strategy names with spaces, never underscores.",
   ];
   if (stepId === "layer-session") return [
     `Return root = Response([session]) and session = SessionLayer(summary, entrypoint, identity, context, cost). Only component allowed: ${components.join(", ")}. Every argument is a plain-text string. summary: one sentence, 14–20 words, hard maximum 28 words and 200 characters, saying the root Trace captures one business-relevant interaction end to end. Each step caption: 6–10 words, hard maximum 16 words and 130 characters, explaining why the step matters. Count words before responding.`,
@@ -64,6 +69,7 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
     }
   }
   if (stepId === "opening" && photo) return { mode: "presentation", step: "opening", source, photo };
+  if (stepId === "layer-orchestration") return { mode: "presentation", step: "layer-orchestration", source };
   if (stepId === "layer-session") return { mode: "presentation", step: "layer-session", source };
   if (stepId === "architecture-layers") return { mode: "presentation", step: "architecture-layers", source };
   return { mode: "presentation", step: "what-is-langfuse", source };
