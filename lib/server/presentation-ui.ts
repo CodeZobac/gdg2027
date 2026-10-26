@@ -1,6 +1,6 @@
 import { createLibrary, defineComponent, createParser } from "@openuidev/lang-core";
 import { z, type ZodType } from "zod/v4";
-import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, operationsLayerProps, type PresentationStepId } from "../shared/presentation-contract";
+import { presentationTitleProps, presentationPhotoProps, langfuseOverviewProps, architectureLayersProps, sessionLayerProps, orchestrationLayerProps, operationsLayerProps, inferenceLayerProps, type PresentationStepId } from "../shared/presentation-contract";
 import { AgentError } from "./errors";
 
 const PresentationTitle = defineComponent({ name: "PresentationTitle", description: "Required animated presentation title", props: presentationTitleProps, component: null });
@@ -10,8 +10,9 @@ const ArchitectureLayers = defineComponent({ name: "ArchitectureLayers", descrip
 const SessionLayer = defineComponent({ name: "SessionLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: entrypoint, identity, context, cost (each maximum 16 words, 130 characters). Code, field names, the trace diagram and Demo data are supplied by React.", props: sessionLayerProps, component: null });
 const OrchestrationLayer = defineComponent({ name: "OrchestrationLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: strategy, decisions, outcome, boundary (each maximum 16 words, 130 characters). Code, field names, the decision flow and Demo data are supplied by React.", props: orchestrationLayerProps, component: null });
 const OperationsLayer = defineComponent({ name: "OperationsLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: separation, type, io, quality (each maximum 16 words, 130 characters). Code, field names, the span tree and Demo data are supplied by React.", props: operationsLayerProps, component: null });
-const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref, OperationsLayer.ref])) }), component: null });
-export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer, OperationsLayer] });
+const InferenceLayer = defineComponent({ name: "InferenceLayer", description: "Plain-text summary (maximum 28 words, 200 characters) plus one caption per step: automatic, linking, capture, context (each maximum 16 words, 130 characters). Code, field names, the generation tree and Demo data are supplied by React.", props: inferenceLayerProps, component: null });
+const Response = defineComponent({ name: "Response", description: "Presentation canvas", props: z.object({ children: z.array(z.union([PresentationTitle.ref, PresentationPhoto.ref, LangfuseOverview.ref, ArchitectureLayers.ref, SessionLayer.ref, OrchestrationLayer.ref, OperationsLayer.ref, InferenceLayer.ref])) }), component: null });
+export const presentationUiLibrary = createLibrary({ root: "Response", components: [Response, PresentationTitle, PresentationPhoto, LangfuseOverview, ArchitectureLayers, SessionLayer, OrchestrationLayer, OperationsLayer, InferenceLayer] });
 const parser = createParser(presentationUiLibrary.toJSONSchema(), "Response");
 const literals = (values: string[]) => values.map(value => JSON.stringify(value)).join(", ");
 
@@ -54,6 +55,10 @@ export function validatePresentationUi(input: string, step: PresentationStepId =
   if (step === "layer-session") {
     const data = check(sessionLayerProps, single("SessionLayer"));
     return `root = Response([session])\nsession = SessionLayer(${literals([data.summary, data.entrypoint, data.identity, data.context, data.cost])})`;
+  }
+  if (step === "layer-inference") {
+    const data = check(inferenceLayerProps, single("InferenceLayer"));
+    return `root = Response([gen])\ngen = InferenceLayer(${literals([data.summary, data.automatic, data.linking, data.capture, data.context])})`;
   }
   if (step === "layer-operations") {
     const data = check(operationsLayerProps, single("OperationsLayer"));

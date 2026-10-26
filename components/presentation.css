@@ -326,3 +326,36 @@ h3.execution-layer-title { margin:0; font-size:inherit; }
 .ops-quality svg { color:#e8a700; }
 .ops-quality span { grid-column:2; color:var(--arch-muted); font-size:10.5px; }
 @media(max-width:600px) { .ops-quality, .ops-children { grid-template-columns:minmax(0,1fr); } }
+
+/* Layer 4 deep-dive: the Generation, recorded automatically by LiteLLM. */
+.inference-generation { border-left-color:var(--google-green); }
+.inference-generation .session-trace-head i { background:var(--google-green); }
+.block-automatic { background:color-mix(in srgb,var(--arch-blue-tint) 70%,#fff); }
+.block-linking { background:color-mix(in srgb,var(--arch-red-tint) 70%,#fff); }
+.block-capture { background:color-mix(in srgb,var(--arch-yellow-tint) 80%,#fff); }
+.block-prompt { background:color-mix(in srgb,var(--arch-green-tint) 70%,#fff); }
+.session-code.has-antipattern span.is-new { background:color-mix(in srgb,var(--google-red) 25%,transparent); box-shadow:-16px 0 0 color-mix(in srgb,var(--google-red) 25%,transparent), 16px 0 0 color-mix(in srgb,var(--google-red) 25%,transparent); }
+.inference-wrap-toggle[aria-pressed="true"] { border-style:solid; border-color:var(--google-red); color:#c5221f!important; }
+.inference-fallback-toggle[aria-pressed="true"] { border-style:solid; border-color:#e8a700; color:#b06000!important; }
+.inference-gens { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.inference-gens li { display:grid; grid-template-columns:auto auto 1fr; gap:8px; align-items:center; padding:7px 10px; border-radius:8px; background:#fff; border:1px solid var(--arch-border); font-size:11.5px; animation:presentation-reveal .25s ease-out; }
+.inference-gens code { font-size:11.5px; font-weight:650; }
+.inference-gens span { color:var(--arch-muted); }
+.inference-gens .is-ok { border-color:color-mix(in srgb,var(--google-green) 45%,#fff); }
+.inference-gens .is-ok svg { color:#188038; }
+.inference-gens .is-dup { border-color:color-mix(in srgb,var(--google-red) 45%,#fff); }
+.inference-gens .is-dup svg, .inference-gens .is-dup span { color:#c5221f; }
+.inference-tree { list-style:none; margin:0; padding:0; display:grid; gap:5px; }
+.inference-tree li { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11.5px; color:var(--arch-muted); }
+.inference-tree code { font-size:11.5px; font-weight:650; color:var(--arch-ink); }
+.inference-tree .langfuse-type { padding:2px 7px; font-size:10px; }
+.inference-tree small { font-size:10px; font-style:italic; }
+.inference-tree .is-gen code { color:#188038; }
+.inference-capture { grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); }
+.inference-capture dd { overflow-wrap:anywhere; }
+.inference-capture .is-changed dd { color:#b06000; }
+.inference-capture .is-error dd { color:#c5221f; }
+.inference-prompt { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 10px; border-radius:8px; background:#fff; border:1px solid color-mix(in srgb,var(--google-green) 45%,#fff); font-size:11.5px; }
+.inference-prompt svg { color:#188038; }
+.inference-prompt code { font-weight:650; }
+.inference-prompt small { flex-basis:100%; color:var(--arch-muted); font-size:10.5px; }
