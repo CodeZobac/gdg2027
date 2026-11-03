@@ -37,14 +37,14 @@ test("prefix is confined to the configured collection", async () => {
   assert.ok(selected.every(path => path.startsWith("approved/")));
 });
 
-test("gallery sampling supports twelve photos and fails clearly on small buckets", async () => {
+test("gallery sampling supports four photos and fails clearly on small buckets", async () => {
   const selected = await selectPhotos(async () => Array.from({ length: 30 }, (_, i) => file(`${i}.jpg`)), "", () => 0, GALLERY_SIZE);
-  assert.equal(selected.length, 12);
-  assert.equal(new Set(selected).size, 12);
+  assert.equal(selected.length, GALLERY_SIZE);
+  assert.equal(new Set(selected).size, GALLERY_SIZE);
   await assert.rejects(selectPhotos(async () => Array.from({ length: 5 }, (_, i) => file(`${i}.jpg`)), "", undefined, 12), /at least 12/);
 });
 
-test("Supabase adapter signs twelve gallery photos and hides secrets", async (t) => {
+test("Supabase adapter signs four gallery photos and hides secrets", async (t) => {
   const { getRandomPhotos } = await import("../lib/server/supabase-photos");
   const names = Array.from({ length: 12 }, (_, i) => `p${i}.jpg`);
   const variables = ["SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_PHOTO_BUCKET"] as const;
@@ -54,14 +54,14 @@ test("Supabase adapter signs twelve gallery photos and hides secrets", async (t)
     const url = String(input);
     if (url.includes("/object/list/")) return Response.json(names.map(file));
     const body = JSON.parse(String(init?.body));
-    assert.equal(body.paths.length, 12);
+    assert.equal(body.paths.length, GALLERY_SIZE);
     assert.equal(body.expiresIn, 300);
     return Response.json(body.paths.map((path: string) => ({ path, error: null, signedURL: `/object/sign/gdg-photos/${path}?token=test` })));
   });
   try {
     const photos = await getRandomPhotos();
-    assert.equal(photos.length, 12);
-    assert.deepEqual(photos.map(photo => photo.id), names.map((_, i) => `photo-${i + 1}`));
+    assert.equal(photos.length, GALLERY_SIZE);
+    assert.deepEqual(photos.map(photo => photo.id), names.slice(0, GALLERY_SIZE).map((_, i) => `photo-${i + 1}`));
     assert.ok(galleryReplySchema.safeParse({ mode: "gallery", photos }).success);
     assert.ok(!JSON.stringify(photos).includes("test-only-server-secret"));
   } finally { variables.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; }); }
@@ -142,7 +142,7 @@ test("public route serves chat and gallery, and rejects bad input before provide
     assert.equal((await chat.json()).mode, "chat");
     const gallery = await post({ mode: "gallery" });
     assert.equal(gallery.status, 200);
-    assert.equal((await gallery.json()).photos.length, 12);
+    assert.equal((await gallery.json()).photos.length, GALLERY_SIZE);
     for (const bad of [{ message: "" }, { mode: "gallery", count: 100 }, { message: "hi", history: [{ role: "system", text: "x" }] }]) assert.equal((await post(bad)).status, 400);
     const cross = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { Origin: "https://other.example" }, body: '{"message":"hi"}' }));
     assert.equal(cross.status, 403);

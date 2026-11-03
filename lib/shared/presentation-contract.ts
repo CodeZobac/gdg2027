@@ -71,7 +71,7 @@ export const principleEvents = [
 export const principleKeyTerms = ["explain system behavior", "attribute cost", "risk", "signal", "noise", "trace"] as const;
 /** Trusted closing links. URLs never come from the model. */
 export const closingLinks = [
-  { key: "profile", title: "GitHub profile", handle: "@CodeZobac", url: "https://github.com/CodeZobac" },
+  { key: "profile", title: "LinkedIn profile", handle: "Afonso Caboz", url: "https://www.linkedin.com/in/afonsocaboz" },
   { key: "repository", title: "This presentation", handle: "CodeZobac/gdg2027", url: "https://github.com/CodeZobac/gdg2027" },
 ] as const;
 export const presentationSteps = [{
@@ -119,7 +119,7 @@ export const presentationSteps = [{
   id: "closing",
   prompt: "Where can I find this?",
   components: ["ClosingLinks"],
-  guidelines: "Write a short plain-text thank-you line and one short caption per link card for the closing slide of a Langfuse talk at GDG Faro. React already renders the QR codes, URLs and handles from trusted data: the speaker's GitHub profile and the repository of this very presentation app. Invite people to scan, explore the code and follow along. Never write URLs, handles, domain names, code, underscores, markup or emojis.",
+  guidelines: "Write a short plain-text thank-you line and one short caption per link card for the closing slide of a Langfuse talk at GDG Faro. React already renders the QR codes, URLs and handles from trusted data: the speaker's LinkedIn profile and the repository of this very presentation app. Invite people to scan, explore the code and follow along. Never write URLs, handles, domain names, code, underscores, markup or emojis.",
 }] as const;
 export type PresentationStepId = typeof presentationSteps[number]["id"];
 export const openingStep = presentationSteps[0];

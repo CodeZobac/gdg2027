@@ -9,6 +9,10 @@ import type { ChatMessage } from "./agent-loop";
 
 /** One first try plus up to two self-repair attempts with the validator's reasons. */
 const MAX_ATTEMPTS = 3;
+/** Trusted copy used only when every model attempt fails validation, so the talk never stalls. */
+const FALLBACK_SOURCES: Partial<Record<PresentationStepId, string>> = {
+  "tracing-principle": 'root = Response([principle])\nprinciple = TracingPrinciple("Tracing less, with clear intent, often gives you better observability than tracing everything.", "Keep the signal that explains behavior or cost; drop the noise.")',
+};
 
 function stepRules(stepId: PresentationStepId, components: readonly string[]): string[] {
   if (stepId === "opening") return [`Return root = Response([heading, image]) using only ${openingStep.components.join(", ")}. The exact title is ${JSON.stringify(openingStep.title)}. The only authorized photoId is "presentation-opening".`];
@@ -77,7 +81,12 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
     } catch (error) {
       if (!(error instanceof AgentError) || error.code !== "INVALID_PRESENTATION_UI") throw error;
       console.warn(`[presentation] ${stepId} attempt ${attempt}/${MAX_ATTEMPTS} rejected: ${error.detail ?? "unknown reason"}`);
-      if (attempt >= MAX_ATTEMPTS) throw error;
+      if (attempt >= MAX_ATTEMPTS) {
+        const fallback = FALLBACK_SOURCES[stepId];
+        if (!fallback) throw error;
+        source = validatePresentationUi(fallback, stepId);
+        break;
+      }
       messages.push(
         { role: "assistant", content: (response.content ?? "").slice(0, 4000) },
         { role: "user", content: `That output was rejected by the validator: ${error.detail ?? "invalid program"}. Fix only those problems, shorten any text that is too long, keep plain text without underscores, dots inside words, markup or URLs, and return the complete corrected OpenUI Lang program only.` },

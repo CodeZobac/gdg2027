@@ -182,3 +182,39 @@ button:disabled { opacity:.6; }
 @media(max-width:900px) { .gallery-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:600px) { .gallery-backdrop { padding:0; } .gallery-panel { border-radius:0; padding:18px 14px; } .gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:120px; } .gallery-tile:nth-child(6n+4) { grid-column:auto; } .gallery-lightbox { padding:40px 8px; } .lightbox-nav { width:38px; height:38px; } }
 @media(prefers-reduced-motion:reduce) { .gallery-panel, .gallery-tile, .gallery-tile img, .gallery-lightbox, .gallery-lightbox img { animation:none!important; transition:none!important; } }
+
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · existing workspace tokens */
+.inline-gallery { width:100%; min-width:0; margin:0 0 24px; }
+.inline-gallery .gallery-panel { width:100%; max-height:none; margin:0; padding:20px; overflow:visible; box-shadow:none; border:1px solid var(--color-line); animation:none; }
+.inline-gallery .gallery-header { align-items:flex-start; gap:14px; }
+.inline-gallery .gallery-header h2 { font-size:26px; }
+.inline-gallery .gallery-header p { font-size:12px; line-height:1.6; }
+/* Four-tile bento: wide hero, tall side tile, two small tiles. */
+.inline-gallery .gallery-grid { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:repeat(2,180px); grid-auto-rows:180px; grid-auto-flow:row; gap:12px; }
+.inline-gallery .gallery-tile { min-width:0; width:100%; height:100%; aspect-ratio:auto; border-radius:16px; }
+.inline-gallery .gallery-tile:nth-child(1) { grid-column:1 / span 2; grid-row:1; }
+.inline-gallery .gallery-tile:nth-child(2) { grid-column:3; grid-row:1 / span 2; }
+.inline-gallery .gallery-tile:nth-child(3) { grid-column:1; grid-row:2; }
+.inline-gallery .gallery-tile:nth-child(4) { grid-column:2; grid-row:2; }
+.inline-gallery .gallery-tile img { position:absolute; inset:0; }
+@media(max-width:600px) {
+  .inline-gallery .gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(3,130px); gap:8px; }
+  .inline-gallery .gallery-tile:nth-child(1) { grid-column:1 / span 2; grid-row:1; }
+  .inline-gallery .gallery-tile:nth-child(2) { grid-column:2; grid-row:2 / span 2; }
+  .inline-gallery .gallery-tile:nth-child(3) { grid-column:1; grid-row:2; }
+  .inline-gallery .gallery-tile:nth-child(4) { grid-column:1; grid-row:3; }
+}
+.inline-gallery .gallery-lightbox { z-index:70; }
+.inline-gallery .gallery-lightbox img { width:auto; height:auto; object-fit:contain; }
+.prompt-suggestions { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
+.prompt-suggestions button { display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--color-line); border-radius:7px; background:var(--color-paper); color:var(--color-muted); font-size:11px; line-height:1.3; }
+.prompt-suggestions button:hover:not(:disabled) { color:var(--color-accent); border-color:var(--color-accent); background:var(--color-accent-soft); }
+.prompt-suggestions svg { flex-shrink:0; transform:rotate(45deg); }
+.composer-tools { gap:12px; align-items:flex-end; }
+.composer-actions { flex-shrink:0; margin-left:auto; }
+@media(max-width:600px) { .inline-gallery .gallery-panel { padding:14px; }.inline-gallery .gallery-tools { flex-wrap:wrap; gap:7px; }.inline-gallery .gallery-timer { display:none; }.prompt-suggestions button { font-size:10px; padding:6px 8px; }.composer-tools { gap:8px; } }
+.sidebar-qr { margin:auto 8px 24px; display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px; border:1px solid var(--color-line); border-radius:16px; background:#fff; color:inherit; text-decoration:none; }
+.sidebar-qr svg { width:100%; max-width:150px; height:auto; }
+.sidebar-qr .qr-data { fill:#202124; }
+.sidebar-qr .qr-finders { fill:#1a73e8; }
+.sidebar-qr span { font-size:14px; font-weight:700; color:#1a73e8; }

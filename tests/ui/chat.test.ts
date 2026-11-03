@@ -15,9 +15,9 @@ test("chat answers render text, and embed the trusted slide canvas only when pre
   assert.ok(withSlide.includes("OpenUI Lang · chat answer"));
 });
 
-test("last year's gallery opens as a labelled dialog with loading tiles", () => {
+test("last year's gallery renders as a labelled inline region with loading tiles", () => {
   const html = renderToStaticMarkup(createElement(PhotoGallery, { onClose: () => {} }));
-  assert.ok(html.includes('role="dialog"') && html.includes("Last year&#x27;s gallery"));
-  assert.equal((html.match(/gallery-tile is-skeleton/g) ?? []).length, 12);
+  assert.ok(html.includes('role="region"') && html.includes("Last year&#x27;s gallery"));
+  assert.equal((html.match(/gallery-tile is-skeleton/g) ?? []).length, 4);
   assert.ok(html.includes("photos never reach the AI model"));
 });

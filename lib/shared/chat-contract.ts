@@ -8,6 +8,8 @@ export const textProps = z.object({ text: chatText }).strict();
 /** Client-sent history is untrusted context only: short, text-only, bounded. */
 export const chatTurnSchema = z.object({ role: z.enum(["user", "assistant"]), text: z.string().trim().min(1).max(800) }).strict();
 export const chatRequestSchema = z.object({ message: z.string().trim().min(1).max(2000), history: z.array(chatTurnSchema).max(6).optional() }).strict();
-export const chatReplySchema = z.object({ mode: z.literal("chat"), source: z.string().max(16000), text: z.string().max(2400) }).strict();
+export const suggestionText = z.string().trim().max(60).refine(value => { const words = value.split(/\s+/).length; return words >= 3 && words <= 5; }, "Use 3 to 5 words");
+export const suggestionProps = z.object({ first: suggestionText, second: suggestionText }).strict();
+export const chatReplySchema = z.object({ mode: z.literal("chat"), source: z.string().max(16000), text: z.string().max(2400), suggestions: z.array(suggestionText).max(2).optional() }).strict();
 export type ChatTurn = z.infer<typeof chatTurnSchema>;
 export type ChatReply = z.infer<typeof chatReplySchema>;

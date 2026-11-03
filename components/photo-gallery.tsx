@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Images, RefreshCw, Shuffle, X } from "lucide-react";
 import { galleryReplySchema, GALLERY_SIZE, type GalleryPhoto } from "@/lib/shared/gallery-contract";
 
 /** Last year's photos: a random sample of the private collection, signed for five minutes. */
 export function PhotoGallery({ onClose }: { onClose: () => void }) {
+  const titleId = useId();
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,7 +39,7 @@ export function PhotoGallery({ onClose }: { onClose: () => void }) {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.querySelector<HTMLElement>("button")?.focus();
+
     return () => previous?.focus();
   }, []);
 
@@ -51,7 +52,7 @@ export function PhotoGallery({ onClose }: { onClose: () => void }) {
     if (event.key === "Escape") { event.stopPropagation(); if (open !== null) setOpen(null); else onClose(); }
     if (open !== null && event.key === "ArrowRight") step(1);
     if (open !== null && event.key === "ArrowLeft") step(-1);
-    if (event.key === "Tab") {
+    if (open !== null && event.key === "Tab") {
       const controls = dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled)");
       if (!controls?.length) return;
       const first = controls[0], last = controls[controls.length - 1];
@@ -61,13 +62,13 @@ export function PhotoGallery({ onClose }: { onClose: () => void }) {
   }
 
   const current = open !== null ? photos[open] : null;
-  return <div className="modal-backdrop gallery-backdrop" onClick={onClose}>
-    <section ref={dialog} className="gallery-panel" role="dialog" aria-modal="true" aria-labelledby="gallery-title" onClick={event => event.stopPropagation()} onKeyDown={onKey}>
-      <header className="gallery-header">
+  return <div className="inline-gallery">
+    <section ref={dialog} className="gallery-panel" style={{ border: "1px solid #dadce0", borderTop: "4px solid #4285f4", borderRadius: 20, padding: 24, background: "#fff", width: "100%", boxSizing: "border-box", boxShadow: "0 4px 16px rgba(60,64,67,.08)" }} role="region" aria-labelledby={titleId} onClick={event => event.stopPropagation()} onKeyDown={onKey}>
+      <header className="gallery-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
         <div>
           <div className="welcome-eyebrow gallery-eyebrow"><span /> GDG FARO · 2025</div>
-          <h2 id="gallery-title">Last year&apos;s gallery</h2>
-          <p>A random handful of moments from the community collection. Shuffle for another set.</p>
+          <div aria-hidden="true" style={{ display: "flex", gap: 5, marginBottom: 12 }}>{["#4285f4", "#ea4335", "#fbbc04", "#34a853"].map(color => <span key={color} style={{ width: 22, height: 5, borderRadius: 3, background: color }} />)}</div><h2 id={titleId} style={{ fontSize: 28, letterSpacing: "-.04em", color: "#202124", margin: "0 0 8px" }}>Last year&apos;s gallery</h2>
+          <p>Four moments from the community. Shuffle to see more.</p>
         </div>
         <div className="gallery-tools">
           <span className={`gallery-timer ${remaining < 60 ? "is-low" : ""}`} aria-live="off">{photos.length && !expired ? `Access ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : ""}</span>
@@ -79,11 +80,11 @@ export function PhotoGallery({ onClose }: { onClose: () => void }) {
       {error ? <div className="gallery-empty" role="alert"><Images size={28} /><p>{error}</p><button className="gallery-shuffle" onClick={() => void shuffle()}><RefreshCw size={15} />Try again</button></div>
         : <div className={`gallery-grid ${expired ? "is-expired" : ""}`} aria-busy={loading}>
           {(loading ? Array.from({ length: GALLERY_SIZE }, (_, index) => ({ id: `skeleton-${index}` }) as GalleryPhoto) : photos).map((photo, index) => loading
-            ? <div key={photo.id} className="gallery-tile is-skeleton" style={{ animationDelay: `${index * 40}ms` }} />
-            : <button key={photo.id + photo.url} className={`gallery-tile ${loaded[photo.id] ? "is-loaded" : ""}`} style={{ animationDelay: `${index * 45}ms` }} onClick={() => setOpen(index)} disabled={expired} aria-label={`Open photo ${index + 1} of ${photos.length}`}>
+            ? <div key={photo.id} className="gallery-tile is-skeleton" />
+            : <button key={photo.id + photo.url} className={`gallery-tile ${loaded[photo.id] ? "is-loaded" : ""}`} onClick={() => setOpen(index)} disabled={expired} aria-label={`Open photo ${index + 1} of ${photos.length}`}>
               {/* Private signed image: no optimizer cache or third-party proxy. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.url} alt={`GDG Faro community photo ${index + 1}`} loading="lazy" referrerPolicy="no-referrer" onLoad={() => setLoaded(previous => ({ ...previous, [photo.id]: true }))} />
+              <img style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 1 }} src={photo.url} alt={`GDG Faro community photo ${index + 1}`} loading="lazy" referrerPolicy="no-referrer" onLoad={() => setLoaded(previous => ({ ...previous, [photo.id]: true }))} />
               <span className="gallery-index">{String(index + 1).padStart(2, "0")}</span>
             </button>)}
           {expired && <div className="gallery-expired"><p>Temporary access expired.</p><button className="gallery-shuffle" onClick={() => void shuffle()}><RefreshCw size={15} />Refresh access</button></div>}

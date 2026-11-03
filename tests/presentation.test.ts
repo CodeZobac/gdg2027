@@ -317,7 +317,7 @@ test("closing links never accept URLs or handles from the model", async () => {
   assert.equal(validatePresentationUi(closingUi(), "closing"), closingUi());
   for (const invalid of ["Visit github.com/CodeZobac", "https://evil.example", "Scan <b>me</b>", "word ".repeat(13).trim()]) assert.throws(() => validatePresentationUi(closingUi(["Thanks!", invalid, "Explore."]), "closing"), /invalid presentation/);
   assert.ok(!closingLinksProps.safeParse({ thanks: "a", profile: "b", repository: "c", url: "x" }).success);
-  assert.deepEqual(closingLinks.map(link => link.url), ["https://github.com/CodeZobac", "https://github.com/CodeZobac/gdg2027"]);
+  assert.deepEqual(closingLinks.map(link => link.url), ["https://www.linkedin.com/in/afonsocaboz", "https://github.com/CodeZobac/gdg2027"]);
   const reply = await runPresentationAgent(async request => {
     assert.ok(!(request.messages[0].content ?? "").includes("https://"), "URLs stay out of the model prompt");
     return { role: "assistant", content: closingUi() };

@@ -13,7 +13,7 @@ Anyone with the app link can use the app without an access code. Three surfaces 
 
 - **Chat**: a Langfuse assistant grounded in the presentation (`lib/server/presentation-knowledge.ts`, built from the same trusted contract as the slides). It answers in plain text and embeds at most one interactive slide component when a visual helps.
 - **Presentation**: nine OpenUI-driven slides (Langfuse overview, the four instrumentation layers, the tracing principle and closing QR codes).
-- **Last year's gallery**: twelve random photos from the private Supabase collection, signed for five minutes.
+- **Last year's gallery**: four random photos from the private Supabase collection, signed for five minutes.
 
 Configure server-only secrets using [.env.example](.env.example) and follow [setup instructions](docs/setup-agent.md). The model is `deepseek-flash`, called directly through the official DeepSeek API with native fetch. No Google Cloud configuration is required.
 

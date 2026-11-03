@@ -1,14 +1,15 @@
 import { createLibrary, defineComponent, createParser } from "@openuidev/lang-core";
 import { z, type ZodObject, type ZodRawShape, type ZodError } from "zod/v4";
-import { chatComponents, textProps } from "../shared/chat-contract";
+import { chatComponents, textProps, suggestionProps } from "../shared/chat-contract";
 import { architectureLayersProps, closingLinksProps, inferenceLayerProps, langfuseOverviewProps, operationsLayerProps, orchestrationLayerProps, sessionLayerProps, tracingPrincipleProps } from "../shared/presentation-contract";
 import { slideComponents } from "./presentation-ui";
 import { AgentError } from "./errors";
 
 const Text = defineComponent({ name: "Text", description: "Plain-text answer, maximum 1200 characters. Line breaks allowed. No markdown, HTML or code fences.", props: textProps, component: null });
+const Suggestions = defineComponent({ name: "Suggestions", description: "Two relevant follow-up prompts, each 3 to 5 words", props: suggestionProps, component: null });
 const slides = Object.values(slideComponents);
-const Response = defineComponent({ name: "Response", description: "Chat answer: one or two Text parts and at most one slide component", props: z.object({ children: z.array(z.union([Text.ref, slideComponents.LangfuseOverview.ref, slideComponents.ArchitectureLayers.ref, slideComponents.SessionLayer.ref, slideComponents.OrchestrationLayer.ref, slideComponents.OperationsLayer.ref, slideComponents.InferenceLayer.ref, slideComponents.TracingPrinciple.ref, slideComponents.ClosingLinks.ref])) }), component: null });
-export const chatUiLibrary = createLibrary({ root: "Response", components: [Response, Text, ...slides] });
+const Response = defineComponent({ name: "Response", description: "Chat answer: one or two Text parts and at most one slide component", props: z.object({ children: z.array(z.union([Suggestions.ref, Text.ref, slideComponents.LangfuseOverview.ref, slideComponents.ArchitectureLayers.ref, slideComponents.SessionLayer.ref, slideComponents.OrchestrationLayer.ref, slideComponents.OperationsLayer.ref, slideComponents.InferenceLayer.ref, slideComponents.TracingPrinciple.ref, slideComponents.ClosingLinks.ref])) }), component: null });
+export const chatUiLibrary = createLibrary({ root: "Response", components: [Response, Text, Suggestions, ...slides] });
 const parser = createParser(chatUiLibrary.toJSONSchema(), "Response");
 
 /** Positional argument order for canonical serialization comes from each trusted schema. */
@@ -18,7 +19,7 @@ const schemas: Record<(typeof chatComponents)[number], ZodObject<ZodRawShape>> =
 };
 const isSlide = (name: string): name is (typeof chatComponents)[number] => (chatComponents as readonly string[]).includes(name);
 
-export type ValidatedChat = { source: string; text: string; component: string | null };
+export type ValidatedChat = { source: string; text: string; component: string | null; suggestions?: string[] };
 export function validateChatUi(input: string): ValidatedChat {
   const fail = (detail: string): never => { throw new AgentError("INVALID_CHAT_UI", "The assistant returned an invalid answer. Please retry.", 502, detail); };
   if (input.length > 16000) return fail("output longer than 16000 characters");
@@ -28,12 +29,19 @@ export function validateChatUi(input: string): ValidatedChat {
   if (parsed.meta.unresolved.length || parsed.meta.orphaned.length) return fail("every referenced variable must be defined exactly once and used");
   if (parsed.queryStatements.length || parsed.mutationStatements.length || Object.keys(parsed.stateDeclarations).length) return fail("queries, mutations and state are not allowed");
   const children = parsed.root.props.children;
-  if (!Array.isArray(children) || children.length < 1 || children.length > 3) return fail("Response must contain 1 to 3 children");
+  if (!Array.isArray(children) || children.length < 1 || children.length > 4) return fail("Response must contain 1 to 3 children");
+  let suggestions: string[] | undefined;
   const lines: string[] = [];
   const texts: string[] = [];
   let component: string | null = null;
   for (const [index, child] of children.entries()) {
     if (!child || child.type !== "element" || child.partial) return fail(`child ${index + 1} is not a complete component`);
+    if (child.typeName === "Suggestions") {
+      const props = suggestionProps.safeParse(child.props);
+      if (!props.success || suggestions) return fail("Suggestions must contain two prompts of 3 to 5 words");
+      suggestions = [props.data.first, props.data.second];
+      continue;
+    }
     if (child.typeName === "Text") {
       const props = textProps.safeParse(child.props);
       if (!props.success) return fail(`Text ${index + 1}: ${props.error.issues.map(issue => issue.message).join("; ")}`);
@@ -57,5 +65,5 @@ export function validateChatUi(input: string): ValidatedChat {
     } else return fail(`unknown component ${child.typeName}; allowed: Text, ${chatComponents.join(", ")}`);
   }
   if (!texts.length) return fail("include at least one Text part that answers the question");
-  return { source: `root = Response([${lines.map((_, i) => `part${i}`).join(", ")}])\n${lines.join("\n")}`, text: texts.join("\n\n").slice(0, 2400), component };
+  return { source: `root = Response([${lines.map(line => line.split(" = ")[0]).join(", ")}])\n${lines.join("\n")}`, text: texts.join("\n\n").slice(0, 2400), component, ...(suggestions ? { suggestions } : {}) };
 }

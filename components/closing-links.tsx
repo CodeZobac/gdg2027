@@ -22,7 +22,7 @@ function qrPaths(url: string) {
   return { data, finders, box: size + QUIET * 2 };
 }
 
-function QrCode({ url, label }: { url: string; label: string }) {
+export function QrCode({ url, label }: { url: string; label: string }) {
   const { data, finders, box } = useMemo(() => qrPaths(url), [url]);
   return <svg className="qr-svg" viewBox={`0 0 ${box} ${box}`} role="img" aria-label={`QR code: ${label}`} shapeRendering="crispEdges">
     <rect width={box} height={box} fill="#fff" />
@@ -63,6 +63,6 @@ export function ClosingLinksCanvas(props: z.infer<typeof closingLinksProps>) {
         </article>;
       })}
     </div>
-    <p className="closing-url" aria-live="polite">{(closingLinks.find(link => link.key === focused) ?? null)?.url.replace("https://", "") ?? "github.com/CodeZobac"}</p>
+    <p className="closing-url" aria-live="polite">{(closingLinks.find(link => link.key === focused) ?? null)?.url.replace("https://", "") ?? closingLinks[0].url.replace("https://", "")}</p>
   </section>;
 }
