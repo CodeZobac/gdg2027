@@ -5,6 +5,9 @@ import { generateDeepSeek } from "./deepseek";
 import { getPresentationPhoto } from "./supabase-photos";
 import { presentationUiLibrary, validatePresentationUi } from "./presentation-ui";
 import { AgentError } from "./errors";
+import { startActiveObservation } from "@langfuse/tracing";
+import { scoreActiveTrace } from "./langfuse";
+import { validateOperation } from "./chat-agent";
 import type { ChatMessage } from "./agent-loop";
 
 /** One first try plus up to two self-repair attempts with the validator's reasons. */
@@ -57,7 +60,23 @@ function stepRules(stepId: PresentationStepId, components: readonly string[]): s
   ];
 }
 
-export async function runPresentationAgent(generate: Generate, selectPhoto: typeof getPresentationPhoto, signal?: AbortSignal, stepId: PresentationStepId = "opening"): Promise<PresentationReply> {
+/** Layer 2: orchestration.flow (agent span). */
+export function runPresentationAgent(generate: Generate, selectPhoto: typeof getPresentationPhoto, signal?: AbortSignal, stepId: PresentationStepId = "opening"): Promise<PresentationReply> {
+  return startActiveObservation("orchestration.flow", async agent => {
+    agent.update({ input: { step: stepId }, metadata: { strategy: "validate-retry-fallback", maxAttempts: MAX_ATTEMPTS } });
+    try {
+      const reply = await presentationLoop(generate, selectPhoto, signal, stepId, path => agent.update({ metadata: { finalPath: path } }));
+      agent.update({ output: { step: reply.step } });
+      return reply;
+    } catch (error) {
+      agent.update({ level: "ERROR", statusMessage: error instanceof AgentError ? error.code : "UNKNOWN", metadata: { finalPath: "abort" } });
+      scoreActiveTrace("ui_valid", 0, "presentation aborted");
+      throw error;
+    }
+  }, { asType: "agent" });
+}
+
+async function presentationLoop(generate: Generate, selectPhoto: typeof getPresentationPhoto, signal: AbortSignal | undefined, stepId: PresentationStepId, setPath: (path: "success" | "fallback") => void): Promise<PresentationReply> {
   signal?.throwIfAborted();
   const step = presentationSteps.find(item => item.id === stepId);
   if (!step) throw new AgentError("INVALID_PRESENTATION_STEP", "Unknown presentation step.", 400);
@@ -76,7 +95,9 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
     signal?.throwIfAborted();
     if (response.tool_calls?.length) throw new AgentError("INVALID_PRESENTATION_UI", "Unexpected presentation tool request.", 502);
     try {
-      source = validatePresentationUi(response.content ?? "", stepId);
+      source = validateOperation("operation.validate-presentation-ui", attempt, () => validatePresentationUi(response.content ?? "", stepId));
+      setPath("success");
+      scoreActiveTrace("ui_valid", attempt === 1 ? 1 : 0.5, `accepted on attempt ${attempt}`);
       break;
     } catch (error) {
       if (!(error instanceof AgentError) || error.code !== "INVALID_PRESENTATION_UI") throw error;
@@ -85,6 +106,8 @@ export async function runPresentationAgent(generate: Generate, selectPhoto: type
         const fallback = FALLBACK_SOURCES[stepId];
         if (!fallback) throw error;
         source = validatePresentationUi(fallback, stepId);
+        setPath("fallback");
+        scoreActiveTrace("ui_valid", 0, "business fallback used");
         break;
       }
       messages.push(

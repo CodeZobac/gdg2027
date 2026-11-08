@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod/v4";
 import type { GenerateRequest, ChatMessage } from "./agent-loop";
 import { AgentError } from "./errors";
+import { startActiveObservation } from "@langfuse/tracing";
 
 const completionSchema = z.object({
   choices: z.array(z.object({
@@ -15,9 +16,26 @@ const completionSchema = z.object({
       })).max(1).optional(),
     }),
   })).length(1),
+  usage: z.object({ prompt_tokens: z.number(), completion_tokens: z.number(), total_tokens: z.number() }).optional(),
 });
+type Usage = z.infer<typeof completionSchema>["usage"];
 
-export async function generateDeepSeek(request: GenerateRequest, parentSignal?: AbortSignal): Promise<ChatMessage> {
+/** Layer 4: model.inference (generation) with model, tokens, latency and provider errors. */
+export function generateDeepSeek(request: GenerateRequest, parentSignal?: AbortSignal): Promise<ChatMessage> {
+  return startActiveObservation("model.inference", async generation => {
+    generation.update({ model: request.model, input: request.messages, modelParameters: { max_tokens: request.max_tokens, tool_choice: request.tool_choice } });
+    try {
+      const { message, usage } = await callDeepSeek(request, parentSignal);
+      generation.update({ output: message, ...(usage ? { usageDetails: { input: usage.prompt_tokens, output: usage.completion_tokens, total: usage.total_tokens } } : {}) });
+      return message;
+    } catch (error) {
+      generation.update({ level: "ERROR", statusMessage: error instanceof AgentError ? error.code : "UNKNOWN" });
+      throw error;
+    }
+  }, { asType: "generation" });
+}
+
+async function callDeepSeek(request: GenerateRequest, parentSignal?: AbortSignal): Promise<{ message: ChatMessage; usage: Usage }> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new AgentError("AI_NOT_CONFIGURED", "Set DEEPSEEK_API_KEY on the server to enable Agent mode.");
   const signal = AbortSignal.any([...(parentSignal ? [parentSignal] : []), AbortSignal.timeout(25000)]);
@@ -38,7 +56,7 @@ export async function generateDeepSeek(request: GenerateRequest, parentSignal?: 
     const parsed = completionSchema.safeParse(await response.json().catch(() => null));
     if (!parsed.success) throw new AgentError("INVALID_AI_RESPONSE", "DeepSeek returned an invalid response. Please try again.", 502);
     const message = parsed.data.choices[0].message;
-    return { ...message, content: message.content ?? null };
+    return { message: { ...message, content: message.content ?? null }, usage: parsed.data.usage };
   } catch (error) {
     if (signal.aborted) {
       const timedOut = signal.reason instanceof DOMException && signal.reason.name === "TimeoutError";

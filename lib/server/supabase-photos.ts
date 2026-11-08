@@ -1,6 +1,15 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { AgentError } from "./errors";
+import { startActiveObservation } from "@langfuse/tracing";
+
+/** Layer 3: retriever span. Logs counts only, never signed URLs. */
+const retriever = <T>(name: string, input: Record<string, unknown>, run: () => Promise<T>, count: (result: T) => number) =>
+  startActiveObservation(name, async span => {
+    span.update({ input });
+    try { const result = await run(); span.update({ output: { photos: count(result) } }); return result; }
+    catch (error) { span.update({ level: "ERROR", statusMessage: error instanceof AgentError ? error.code : "UNKNOWN" }); throw error; }
+  }, { asType: "retriever" });
 import { selectPhotos } from "./storage-selection";
 import { GALLERY_SIZE, type GalleryPhoto } from "../shared/gallery-contract";
 
@@ -18,7 +27,10 @@ function configuredStorage(signal?: AbortSignal) {
 }
 
 /** Signs `count` randomly sampled photos for 5 minutes. IDs are opaque and positional. */
-export async function getRandomPhotos(signal?: AbortSignal, count = GALLERY_SIZE): Promise<GalleryPhoto[]> {
+export function getRandomPhotos(signal?: AbortSignal, count = GALLERY_SIZE): Promise<GalleryPhoto[]> {
+  return retriever("operation.random-photos", { count }, () => randomPhotos(signal, count), photos => photos.length);
+}
+async function randomPhotos(signal: AbortSignal | undefined, count: number): Promise<GalleryPhoto[]> {
   const { storage, url, bucket, prefix } = configuredStorage(signal);
   const paths = await selectPhotos(async (folder, offset, limit) => {
     const { data, error } = await storage.list(folder, { offset, limit, sortBy: { column: "name", order: "asc" } });
@@ -38,7 +50,10 @@ export async function getRandomPhotos(signal?: AbortSignal, count = GALLERY_SIZE
 }
 
 /** Fixed server-owned object: callers cannot choose paths or buckets. */
-export async function getPresentationPhoto(signal?: AbortSignal) {
+export function getPresentationPhoto(signal?: AbortSignal) {
+  return retriever("operation.presentation-photo", { fixed: true }, () => presentationPhoto(signal), () => 1);
+}
+async function presentationPhoto(signal?: AbortSignal) {
   const { storage, url, bucket, prefix } = configuredStorage(signal);
   const path = [prefix, "PXL_20250712_082655543.jpg"].filter(Boolean).join("/");
   const { data, error } = await storage.createSignedUrl(path, 300);

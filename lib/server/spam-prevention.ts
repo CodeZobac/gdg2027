@@ -23,6 +23,7 @@ export function checkSpam(request: Request, message: string, now = Date.now()) {
   if (!visitors.has(id) && visitors.size >= 10000) visitors.delete(visitors.keys().next().value!);
   visitors.set(id, visitor);
   return {
+    visitorId: id,
     blocked: duplicate || burst,
     retryAfter,
     cookie: `chat_visitor=${id}; HttpOnly; SameSite=Strict; Path=/api/chat; Max-Age=600${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`,

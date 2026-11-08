@@ -4,6 +4,8 @@ import { chatUiLibrary, validateChatUi } from "./chat-ui";
 import { presentationKnowledge } from "./presentation-knowledge";
 import { generateDeepSeek } from "./deepseek";
 import { AgentError } from "./errors";
+import { startActiveObservation } from "@langfuse/tracing";
+import { scoreActiveTrace } from "./langfuse";
 import type { ChatReply, ChatTurn } from "../shared/chat-contract";
 
 const MAX_ATTEMPTS = 3;
@@ -19,7 +21,23 @@ export const chatRules = [
   "Output OpenUI Lang only, with literal string arguments. No JavaScript, HTML, queries, mutations or state.",
 ];
 
-export async function runChatAgent(message: string, history: ChatTurn[], generate: Generate, signal?: AbortSignal): Promise<ChatReply> {
+/** Layer 2: orchestration.flow (agent span). */
+export function runChatAgent(message: string, history: ChatTurn[], generate: Generate, signal?: AbortSignal): Promise<ChatReply> {
+  return startActiveObservation("orchestration.flow", async agent => {
+    agent.update({ input: { message, turns: history.length }, metadata: { strategy: "validate-and-retry", maxAttempts: MAX_ATTEMPTS } });
+    try {
+      const reply = await chatLoop(message, history, generate, signal);
+      agent.update({ output: { text: reply.text }, metadata: { finalPath: "success" } });
+      return reply;
+    } catch (error) {
+      agent.update({ level: "ERROR", statusMessage: error instanceof AgentError ? error.code : "UNKNOWN", metadata: { finalPath: "abort" } });
+      scoreActiveTrace("ui_valid", 0, "chat aborted");
+      throw error;
+    }
+  }, { asType: "agent" });
+}
+
+async function chatLoop(message: string, history: ChatTurn[], generate: Generate, signal?: AbortSignal): Promise<ChatReply> {
   signal?.throwIfAborted();
   const messages: ChatMessage[] = [
     { role: "system", content: `${chatUiLibrary.prompt({ toolCalls: false, bindings: false, builtinFunctions: false, additionalRules: chatRules })}\n\n${presentationKnowledge}` },
@@ -31,7 +49,8 @@ export async function runChatAgent(message: string, history: ChatTurn[], generat
     signal?.throwIfAborted();
     if (response.tool_calls?.length) throw new AgentError("INVALID_CHAT_UI", "Unexpected tool request.", 502);
     try {
-      const { source, text, suggestions } = validateChatUi(response.content ?? "");
+      const { source, text, suggestions } = validateOperation("operation.validate-chat-ui", attempt, () => validateChatUi(response.content ?? ""));
+      scoreActiveTrace("ui_valid", attempt === 1 ? 1 : 0.5, `accepted on attempt ${attempt}`);
       return { mode: "chat", source, text, ...(suggestions ? { suggestions } : {}) };
     } catch (error) {
       if (!(error instanceof AgentError) || error.code !== "INVALID_CHAT_UI") throw error;
@@ -46,4 +65,13 @@ export async function runChatAgent(message: string, history: ChatTurn[], generat
 }
 export function chatAgent(message: string, history: ChatTurn[], signal: AbortSignal) {
   return runChatAgent(message, history, request => generateDeepSeek(request, signal), signal);
+}
+
+/** Layer 3: deterministic validator as a tool span. */
+export function validateOperation<T>(name: string, attempt: number, run: () => T): T {
+  return startActiveObservation(name, tool => {
+    tool.update({ metadata: { attempt } });
+    try { const result = run(); tool.update({ output: { valid: true } }); return result; }
+    catch (error) { tool.update({ level: "WARNING", output: { valid: false }, statusMessage: error instanceof AgentError ? error.detail ?? error.code : "invalid" }); throw error; }
+  }, { asType: "tool" });
 }

@@ -7,6 +7,9 @@ import { getRandomPhotos } from "@/lib/server/supabase-photos";
 import { chatRequestSchema } from "@/lib/shared/chat-contract";
 import { galleryRequestSchema } from "@/lib/shared/gallery-contract";
 import { AgentError } from "@/lib/server/errors";
+import { after } from "next/server";
+import { propagateAttributes, startActiveObservation } from "@langfuse/tracing";
+import { flushLangfuse, isLangfuseEnabled } from "@/lib/server/langfuse";
 
 // Node.js is the default runtime; explicit segment runtime conflicts with Cache Components.
 const bodySchema = z.union([chatRequestSchema, presentationRequestSchema, galleryRequestSchema]);
@@ -36,9 +39,28 @@ export async function POST(request: Request) {
     headers["Set-Cookie"] = spam.cookie;
     if (spam.blocked) return Response.json({ error: "Repeated or rapid submissions detected. Please wait a moment.", code: "SPAM_DETECTED" }, { status: 429, headers: { ...headers, "Retry-After": String(spam.retryAfter) } });
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(60000)]);
-    if (!("mode" in payload)) return Response.json(await chatAgent(payload.message, payload.history ?? [], signal), { headers });
-    if (payload.mode === "gallery") return Response.json({ mode: "gallery", photos: await getRandomPhotos(signal) }, { headers });
-    return Response.json(await presentationAgent(signal, payload.step), { headers });
+    const mode = "mode" in payload ? payload.mode : "chat";
+    // Layer 1: interaction.session is the root Trace; identity and business context propagate to every child span.
+    const reply = await propagateAttributes({ traceName: "interaction.session", userId: spam.visitorId, sessionId: spam.visitorId, tags: [mode], metadata: { mode, ...("step" in payload ? { step: payload.step } : {}) } }, () =>
+      startActiveObservation("interaction.session", async session => {
+        session.update({ input: !("mode" in payload) ? { message: payload.message } : { mode, ...("step" in payload ? { step: payload.step } : {}) } });
+        try {
+          const result = !("mode" in payload) ? await chatAgent(payload.message, payload.history ?? [], signal)
+            : payload.mode === "gallery" ? { mode: "gallery" as const, photos: await getRandomPhotos(signal) }
+            : await presentationAgent(signal, payload.step);
+          // Output carries the reply text so Langfuse managed evaluators can map {{output}} → Trace Output.
+          session.update({ output: result.mode === "chat" ? { outcome: "success", mode: "chat", text: result.text, source: result.source }
+            : result.mode === "gallery" ? { outcome: "success", mode: "gallery", photos: result.photos.length }
+            : { outcome: "success", mode: "presentation", step: result.step, source: result.source } });
+          if (isLangfuseEnabled()) after(flushLangfuse);
+          return result;
+        } catch (error) {
+          if (isLangfuseEnabled()) after(flushLangfuse);
+          session.update({ level: "ERROR", output: { outcome: "error" }, statusMessage: error instanceof AgentError ? error.code : "UNKNOWN" });
+          throw error;
+        }
+      }));
+    return Response.json(reply, { headers });
   } catch (error) {
     if (error instanceof SyntaxError) return Response.json({ error: "Invalid JSON request." }, { status: 400, headers });
     if (error instanceof AgentError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers });

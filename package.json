@@ -12,6 +12,12 @@
     "photos:compress": "node scripts/compress-photos.mjs"
   },
   "dependencies": {
+    "@langfuse/client": "^6.1.1",
+    "@langfuse/otel": "^6.1.1",
+    "@langfuse/tracing": "^6.1.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^3.1.0",
+    "@opentelemetry/sdk-trace-node": "^2.12.0",
     "@openuidev/lang-core": "1.0.1",
     "@openuidev/react-lang": "^1.0.1",
     "@supabase/supabase-js": "2.118.0",
